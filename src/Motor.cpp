@@ -1,6 +1,6 @@
 #include "Motor.h"
 
-const int MAX_SPEED_HZ = 24000; 
+const int MAX_SPEED_HZ = 20000; 
 const int ACCELERATION = 600000; 
 const int ENDPOINT = 12000;      
 
