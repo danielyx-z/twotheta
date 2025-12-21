@@ -1,6 +1,6 @@
 #include "Motor.h"
 
-const float MAX_SPEED = 20000.0f;
+const float MAX_SPEED = 2000.0f;
 const int ENDPOINT = 10000;
 
 AccelStepper stepper(AccelStepper::DRIVER, STEP_PIN, DIR_PIN);
