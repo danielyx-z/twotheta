@@ -1,41 +1,65 @@
 #include "Motor.h"
 
-const float MAX_SPEED = 2000.0f;
-const int ENDPOINT = 10000;
+const int MAX_SPEED_HZ = 24000; 
+const int ACCELERATION = 600000; 
+const int ENDPOINT = 12000;      
 
-AccelStepper stepper(AccelStepper::DRIVER, STEP_PIN, DIR_PIN);
-
-static float commanded_action = 0.0f;
-static float current_speed = 0.0f;
+FastAccelStepperEngine engine;
+FastAccelStepper *stepper = NULL;
 
 void setupMotor() {
-  pinMode(EN_PIN, OUTPUT);
-  digitalWrite(EN_PIN, LOW);
-
-  stepper.setMaxSpeed(MAX_SPEED);
-  stepper.setSpeed(0.0f);
-  stepper.setCurrentPosition(0);
+  engine.init();
+  stepper = engine.stepperConnectToPin(STEP_PIN);
+  if (stepper) {
+    stepper->setDirectionPin(DIR_PIN);
+    stepper->setEnablePin(EN_PIN);
+    stepper->setAutoEnable(true); 
+    stepper->setAcceleration(ACCELERATION);
+  }
 }
 
 void moveStepper(float action) {
-  if (action > 1.0f) action = 1.0f;
-  if (action < -1.0f) action = -1.0f;
+  if (!stepper) return;
 
-  commanded_action = action;
-}
+  action = constrain(action, -1.0f, 1.0f);
+  long pos = stepper->getCurrentPosition();
 
-void runStepper() {
-  long pos = stepper.currentPosition();
-
-  if ((pos >= ENDPOINT && commanded_action > 0.0f) ||
-      (pos <= -ENDPOINT && commanded_action < 0.0f)) {
-    current_speed = 0.0f;
-    stepper.setSpeed(0.0f);
+  // FIX: Only block if the action moves further into the forbidden zone
+  // Allow the action if it moves back toward zero
+  if (pos >= ENDPOINT && action > 0) {
+    stepper->stopMove();
+    return;
+  }
+  if (pos <= -ENDPOINT && action < 0) {
+    stepper->stopMove();
     return;
   }
 
-  current_speed = commanded_action * MAX_SPEED;
-  stepper.setSpeed(current_speed);
+  uint32_t speed = abs(action) * MAX_SPEED_HZ;
+  
+  if (speed == 0) {
+    stepper->stopMove();
+  } else {
+    stepper->setSpeedInHz(speed);
+    if (action > 0) stepper->runForward();
+    else stepper->runBackward();
+  }
+}
 
-  stepper.runSpeed();
+void checkMotorSafety() {
+  if (!stepper) return;
+
+  long pos = stepper->getCurrentPosition();
+  
+  // Get speed in milliHz. Positive means moving forward, negative backward.
+  int32_t speed = stepper->getCurrentSpeedInMilliHz();
+
+  // If past positive limit and still moving forward
+  if (pos >= ENDPOINT && speed > 0) {
+      stepper->forceStopAndNewPosition(pos); 
+  }
+  // If past negative limit and still moving backward
+  else if (pos <= -ENDPOINT && speed < 0) {
+      stepper->forceStopAndNewPosition(pos);
+  }
 }
