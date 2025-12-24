@@ -12,3 +12,4 @@ extern FastAccelStepper *stepper;
 void setupMotor();
 void moveStepper(float action);
 void checkMotorSafety(); // Call this in loop to enforce endpoints
+void resetMotorPosition(); 
