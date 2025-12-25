@@ -1,90 +1,88 @@
-import time
-import math
 import numpy as np
-import keyboard
-from esp_env import CartPoleESP32Env
+import math
+import time
+from esp_controller import ESP32SerialController
 
-# INITIAL GAINS
-params = {
-    'KP': 5.0,
-    'KI': 0.01,
-    'KD': 0.3,
-    'ALPHA': 0.6,    
-    'FF': 0.05       
-}
+def wrap_angle_pi(x):
+    return (x + math.pi) % (2 * math.pi) - math.pi
 
-# 120 degrees total (60 degrees each way from vertical)
-# 60 * (pi / 180) = ~1.047 radians
-BALANCING_THRESHOLD = 1.047 
+class PIDController:
+    def __init__(self, kp, kd, output_limit=1.0, d_alpha=0.2):
+        self.kp = kp
+        self.kd = kd
+        self.output_limit = output_limit
+        self.d_alpha = d_alpha
+        self.prev_error = 0.0
+        self.prev_time = None
+        self.d_filt = 0.0
 
-STEP = {'KP': 0.1, 'KI': 0.001, 'KD': 0.01, 'ALPHA': 0.02, 'FF': 0.01}
+    def reset(self):
+        self.prev_error = 0.0
+        self.prev_time = None
+        self.d_filt = 0.0
 
-def run_pid_balancer():
-    env = CartPoleESP32Env(port="COM7", baudrate=921600) 
-    print("\n--- UPRIGHT ONLY BALANCER (120° Range) ---")
-    
-    obs, _ = env.reset()
-    prev_error = 0
-    integral = 0
-    last_time = time.perf_counter()
-    target_angle = math.pi 
+    def compute(self, error, t):
+        if self.prev_time is None:
+            self.prev_time = t
+            self.prev_error = error
+            return 0.0
+        dt = t - self.prev_time
+        if dt <= 0: return 0.0
+        d_raw = (error - self.prev_error) / dt
+        self.d_filt = (self.d_alpha * d_raw + (1.0 - self.d_alpha) * self.d_filt)
+        u = self.kp * error + self.kd * self.d_filt
+        self.prev_error = error
+        self.prev_time = t
+        return np.clip(u, -self.output_limit, self.output_limit)
+
+def balance_pendulum(port="COM8", baudrate=921600, duration=60):
+    esp = ESP32SerialController(port, baudrate)
+
+    # Balancing PID
+    angle_pid = PIDController(kp=10.0, kd=0.2, output_limit=1.0, d_alpha=0.05)
+
+    # --- SIMPLE SWING-UP PARAMETERS ---
+    k_swing = 0.15 # Strength of push
+    activation_half_width = math.radians(25.0) 
+
+    target_angle = math.pi - 0.008
+    start_time = time.time()
 
     try:
-        while True:
-            # Handle Keyboard Tuning
-            if keyboard.is_pressed('q'): params['KP'] += STEP['KP']
-            if keyboard.is_pressed('a'): params['KP'] -= STEP['KP']
-            if keyboard.is_pressed('w'): params['KI'] += STEP['KI']
-            if keyboard.is_pressed('s'): params['KI'] -= STEP['KI']
-            if keyboard.is_pressed('e'): params['KD'] += STEP['KD']
-            if keyboard.is_pressed('d'): params['KD'] -= STEP['KD']
-            if keyboard.is_pressed('r'): params['ALPHA'] += STEP['ALPHA']
-            if keyboard.is_pressed('f'): params['ALPHA'] -= STEP['ALPHA']
-            if keyboard.is_pressed('esc'): break
+        while time.time() - start_time < duration:
+            now = time.time()
+            state = esp.receive_state()
+            if state is None: continue
 
-            now = time.perf_counter()
-            dt = now - last_time
-            last_time = now
-            if dt <= 0: dt = 0.001
+            t1, t2, v1, v2, pos = state
+            angle_err = wrap_angle_pi(target_angle - t1)
 
-            s1, c1 = obs[0], obs[1]
-            current_angle = math.atan2(s1, c1)
+            # Safety: Cut if spinning like crazy
+            if abs(v1) > 15:
+                esp.move(0.0)
+                continue
 
-            # Error calculation (Shortest path to PI)
-            raw_error = (target_angle - current_angle + math.pi) % (2 * math.pi) - math.pi
-            
-            # --- ACTIVATION CHECK ---
-            # If the absolute error is greater than 60 degrees, don't move
-            if abs(raw_error) > BALANCING_THRESHOLD:
-                action = np.array([0.0])
-                integral = 0 # Reset integral so it doesn't "jump" when caught
-                prev_error = 0
-                status_mode = "INACTIVE"
+            if abs(angle_err) <= activation_half_width:
+                u = -angle_pid.compute(angle_err, now)
+                mode = "BALANCING"
             else:
-                # Normal PID Logic
-                shaped_error = np.sign(raw_error) * (abs(raw_error) ** params['ALPHA'])
+                angle_pid.reset()
+                taper = max(0, math.cos(t1)-0.1)  / 2
                 
-                integral += shaped_error * dt
-                integral = np.clip(integral, -0.4, 0.4)
-                derivative = (shaped_error - prev_error) / dt
-                
-                output = (params['KP'] * shaped_error) + (params['KI'] * integral) + (params['KD'] * derivative)
-                
-                # Friction floor
-                if abs(output) > 0.001:
-                    output += np.sign(output) * params['FF']
-                
-                action = np.clip([output], -1, 1)
-                prev_error = shaped_error
-                status_mode = "ACTIVE  "
+                u = k_swing * v1 * taper
+                mode = "SWING-UP "
+            
+            u = np.clip(u, -1.0, 1.0)
+            esp.move(float(u))
 
-            obs, _, _, _, _ = env.step(action * -1)
-
-            print(f"\r[{status_mode}] P:{params['KP']:4.1f} α:{params['ALPHA']:4.2f} | Err:{raw_error:6.3f} | Act:{action[0]:5.2f}", end="")
+            print(f"θ={math.degrees(t1):6.1f}° | Mode: {mode} | u={u:6.3f}", end="\r")
             time.sleep(0.001)
 
+    except KeyboardInterrupt:
+        pass
     finally:
-        env.close()
+        esp.move(0.0)
+        esp.close()
 
 if __name__ == "__main__":
-    run_pid_balancer()
+    balance_pendulum()

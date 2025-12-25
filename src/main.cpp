@@ -2,7 +2,7 @@
 #include "Motor.h"
 #include "Encoders.h" 
 
-const unsigned long SERIAL_INTERVAL = 20; 
+const unsigned long SERIAL_INTERVAL = 1; 
 const uint8_t STATE_HEADER[2] = {0xAA, 0x55};
 const uint8_t CMD_HEADER[2] = {0x55, 0xAA};
 const int CMD_PACKET_SIZE = 6;
@@ -14,7 +14,10 @@ int serialBufferIndex = 0;
 void setup() {
   Serial.begin(921600);
   delay(500);
-
+  pinMode(25, OUTPUT);
+  pinMode(24, OUTPUT);
+  digitalWrite(25, HIGH);
+  digitalWrite(24, HIGH);
   setupMotor();
   setupEncoders();
   
@@ -41,7 +44,7 @@ void loop() {
         if (isfinite(action)) {
           // Detect Reset Command
           if (action > 5.0) {
-              resetMotorPosition(); 
+             resetMotorPosition();
           } 
           else {
               moveStepper(action); 

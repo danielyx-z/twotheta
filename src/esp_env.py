@@ -18,7 +18,7 @@ class CartPoleESP32Env(gym.Env):
         self.current_step = 0
 
     def _get_obs(self, state):
-        t2, t1, v1, v2, pos = state
+        t1, t2, v1, v2, pos = state
         return np.array([
             math.sin(t1), math.cos(t1),
             math.sin(t2), math.cos(t2),
@@ -29,7 +29,7 @@ class CartPoleESP32Env(gym.Env):
     def reset(self, seed=None, options=None):
         super().reset(seed=seed)
         self.current_step = 0
-        
+
         self.esp.move(10.0) 
         
         start_wait = time.time()
@@ -40,10 +40,11 @@ class CartPoleESP32Env(gym.Env):
                 break
 
             state = self.esp.receive_state()
+
             if state is None:
                 continue
                 
-            t2, t1, v1, v2, pos = state
+            t1, t2, v1, v2, pos = state
             
             if abs(pos) < 50:
                 self.esp.move(0.0)
@@ -52,7 +53,6 @@ class CartPoleESP32Env(gym.Env):
             
             time.sleep(0.01)
 
-        # Clear buffer
         for _ in range(10):
             self.esp.receive_state()
             
@@ -65,22 +65,19 @@ class CartPoleESP32Env(gym.Env):
     def step(self, action):
         self.current_step += 1
         act = np.clip(action[0], -1.0, 1.0)
-        
-        # Send action immediately
+
         self.esp.move(float(act))
-        raw_state = None
+        raw_state = self.esp.receive_state()
         while raw_state is None:
             raw_state = self.esp.receive_state()
 
         obs = self._get_obs(raw_state)
         t1, t2, v1, v2, pos = raw_state
-        upright_reward = (-math.cos(t1) + 1.0) / 2.0
-        dist_penalty = (pos / self.max_pos) ** 2
-        effort_penalty = act ** 2
-        velocity_penalty = v1 ** 2
-
-        reward = (1.0 * upright_reward) - (0.00 * dist_penalty) - (0.00 * effort_penalty) - (0.00 * velocity_penalty)
         
+        upright_reward = -math.cos(t1) + 0.5
+        dist_penalty = (pos / self.max_pos) ** 2
+        
+        reward = float(upright_reward - (0.01 * dist_penalty))
         
         terminated = False
         if abs(pos) > self.max_pos:

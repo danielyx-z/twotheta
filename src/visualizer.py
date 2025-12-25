@@ -5,7 +5,7 @@ import pygame
 from esp_controller import ESP32SerialController
 
 # Configuration
-SERIAL_PORT = "COM7" 
+SERIAL_PORT = "COM8" 
 BAUD_RATE = 921600
 FPS = 120
 L1 = 120  
@@ -68,8 +68,7 @@ class PendulumVisualizer:
                 self.clock.tick(FPS)
                 continue
 
-            # State unpack: theta2, theta1, vel1, vel2, pos
-            theta2, theta1, vel1, vel2, pos = self.last_state
+            theta1, theta2, vel1, vel2, pos = self.last_state
             
             # Kinematics
             base_x = center_x + pos * POS_SCALE
