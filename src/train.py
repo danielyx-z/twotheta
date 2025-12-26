@@ -8,21 +8,34 @@ PORT = "COM8"
 BAUD = 921600
 MODEL_NAME = "single_pendulum"
 LOG_DIR = "./tensorboard_logs/"
+CKPT_DIR = "./checkpoints"
+TOTAL_TIMESTEPS = 50000
+STEPS_PER_SAVE = 500
+
+os.makedirs(CKPT_DIR, exist_ok=True)
 
 def make_env():
     return Monitor(CartPoleESP32Env(port=PORT, baudrate=BAUD, max_steps=1000))
 
+def latest_checkpoint():
+    files = [f for f in os.listdir(CKPT_DIR) if f.endswith(".zip")]
+    if not files:
+        return None
+    files.sort(key=lambda x: int(x.split("_")[-1].split(".")[0]))
+    return os.path.join(CKPT_DIR, files[-1])
+
 def train():
     env = DummyVecEnv([make_env])
 
-    # Define the 64x64 architecture
     policy_kwargs = dict(net_arch=dict(pi=[64, 64], qf=[64, 64]))
 
-    if os.path.exists(f"{MODEL_NAME}.zip"):
-        print("Loading existing SAC model...")
-        model = SAC.load(MODEL_NAME, env=env, device="cuda")
+    ckpt = latest_checkpoint()
+    if ckpt:
+        model = SAC.load(ckpt, env=env, device="cuda")
+        start_steps = int(ckpt.split("_")[-1].split(".")[0])
+        print("loading from latest checkpoint", ckpt, "at ", start_steps, "steps")
+
     else:
-        print("Starting SAC training from scratch...")
         model = SAC(
             "MlpPolicy",
             env,
@@ -35,25 +48,25 @@ def train():
             batch_size=64,
             tau=0.005,
             gamma=0.99,
-            ent_coef='auto_0.1',
+            ent_coef="auto_0.1",
             train_freq=(1, "episode"),
             gradient_steps=-1,
             tensorboard_log=LOG_DIR
         )
+        start_steps = 0
+
+    total_steps = start_steps
 
     try:
-        steps_per_save = 1000
-        total_steps = 0
-        while total_steps < 50000:
-            model.learn(total_timesteps=steps_per_save, reset_num_timesteps=False)
-            total_steps += steps_per_save
-            model.save(MODEL_NAME)
-            print(f"--- Saved at {total_steps} total steps ---")
-
+        while total_steps < TOTAL_TIMESTEPS:
+            model.learn(total_timesteps=STEPS_PER_SAVE, reset_num_timesteps=False)
+            total_steps += STEPS_PER_SAVE
+            path = os.path.join(CKPT_DIR, f"{MODEL_NAME}_{total_steps}.zip")
+            model.save(path)
+            print(f"Saved checkpoint: {path}")
     except KeyboardInterrupt:
-        print("\nStopping training...")
+        pass
     finally:
-        model.save(MODEL_NAME)
         env.close()
 
 if __name__ == "__main__":

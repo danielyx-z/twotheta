@@ -51,37 +51,39 @@ class CartPoleESP32Env(gym.Env):
         self.damping_pid.reset()
         
         start_time = time.time()
-
+        last_move = time.time()
         stabilized = 0
         while True:
             if time.time() - start_time > 90.0:
                 print("Reset Timeout! Forcing start...")
                 break
 
-            self.esp.serial.reset_input_buffer()
             state = self.esp.receive_state()
             if state is None: continue
 
             t1, v1, pos = state[0], state[2], state[4]
             u_energy = 0.2 * v1 * math.cos(t1)
-            u_center = 0.1 * (pos / self.max_pos)
+            u_center = 0.05 * (pos / self.max_pos)
             action = -np.clip(u_energy + u_center, -0.8, 0.8)
 
-            if abs(v1) < 0.1 and abs(t1) < 0.3:
+            if abs(v1) < 0.3 and abs(t1) < 0.2:
                 stabilized += 1
                 action = u_center
-                if stabilized > 5:  #stable for 1s
+                if stabilized > 300:  #stable for 1s
                     break
+            if time.time() - last_move > 0.2:
+                self.esp.move(float(action))
 
-            self.esp.move(float(action))
+            time.sleep(0.005)
 
-            time.sleep(0.2)
+        print("done damping.")
 
         self.esp.move(0.0) 
 
         self.esp.serial.reset_input_buffer()
         state = self.esp.receive_state()
-        while state is None: state = self.esp.receive_state()
+        while state is None: 
+            state = self.esp.receive_state()
 
         return self._get_obs(state), {}
 
