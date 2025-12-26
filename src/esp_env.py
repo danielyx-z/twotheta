@@ -16,6 +16,7 @@ class CartPoleESP32Env(gym.Env):
         self.max_episode_steps = max_steps
         self.current_step = 0
         self.is_initialized = False
+        self.dt = 0.015 #15ms
 
 
     def _get_obs(self, state):
@@ -34,7 +35,7 @@ class CartPoleESP32Env(gym.Env):
 
         upright_reward = (-math.cos(t1 - 0.0275) + 1) ** 2
         dist_penalty = 0.5 * (pos / self.max_pos) ** 2
-        velocity_penalty = 0.001 * (v1**2)
+        velocity_penalty = 0.01 * (v1**3)
         action_penalty = 0.01 * (action**2)
 
         reward = upright_reward - dist_penalty - velocity_penalty - action_penalty
@@ -48,6 +49,15 @@ class CartPoleESP32Env(gym.Env):
             self.esp.move(10.0) # Trigger hardware homing
             self.is_initialized = True
 
+        #will already be actively dampened and homed. can settle in training time.
+        self.esp.serial.reset_input_buffer()
+        state = self.esp.receive_state()
+        while state is None: 
+            state = self.esp.receive_state()
+
+        return self._get_obs(state), {}
+
+    def active_damp(self):
         start_time = time.time()
         last_move = time.time()
         stabilized = 0
@@ -63,10 +73,10 @@ class CartPoleESP32Env(gym.Env):
 
             t1, v1, pos = state[0], state[2], state[4]
             u_energy = 0.2 * v1 * math.cos(t1)
-            u_center = 0.01 * (pos / self.max_pos)
+            u_center = 0.1 * (pos / self.max_pos)
             action = -np.clip(u_energy + u_center, -0.8, 0.8)
 
-            if abs(v1) < 0.2 and math.cos(t1) > 0.99:
+            if abs(v1) < 0.3 and math.cos(t1) > 0.97:
                 stabilized += 1
                 action = u_center
                 if stabilized > 50:  #stable for enough time
@@ -75,29 +85,16 @@ class CartPoleESP32Env(gym.Env):
                 self.esp.move(float(action))
                 last_move = time.time()
 
-            time.sleep(0.01)
-            
-
-        print("done damping.")
-
+            time.sleep(0.01)      
         self.esp.move(0.0) 
-
-        self.esp.serial.reset_input_buffer()
-        state = self.esp.receive_state()
-        while state is None: 
-            state = self.esp.receive_state()
-
-        return self._get_obs(state), {}
-
 
     def step(self, action):
         start_time = time.perf_counter()
         self.current_step += 1
         act = np.clip(action[0], -1.0, 1.0)
 
-        self.esp.serial.reset_input_buffer()
         self.esp.move(float(act))
-
+    
         raw_state = self.esp.receive_state()
         while raw_state is None:
             raw_state = self.esp.receive_state()
@@ -107,14 +104,15 @@ class CartPoleESP32Env(gym.Env):
         
         
         if terminated or truncated:
+            self.active_damp()
             self.esp.move(10) #beign homing early
-
+            
         reward = self._calculate_reward(raw_state, act, terminated)
 
 
         duration = time.perf_counter() - start_time
-        if duration > 0.03:
-            print("duration exceeded, something is slow! took ", duration, "s to take a step.")
+        if duration > 0.01:
+            print("something is slow! took ", duration, "s to take a step.")
         return self._get_obs(raw_state), reward, terminated, truncated, {}
 
     def close(self):
