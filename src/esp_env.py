@@ -6,14 +6,14 @@ import math
 import time
 
 class CartPoleESP32Env(gym.Env):
-    def __init__(self, port="COM7", baudrate=921600, max_steps=1000):
+    def __init__(self, port="COM8", baudrate=921600, max_steps=1000):
         super().__init__()
         self.esp = ESP32SerialController(port, baudrate)
         
         self.action_space = spaces.Box(low=-1.0, high=1.0, shape=(1,), dtype=np.float32)
         self.observation_space = spaces.Box(low=-np.inf, high=np.inf, shape=(7,), dtype=np.float32)
         
-        self.max_pos = 7900.0  
+        self.max_pos = 31900.0  
         self.max_episode_steps = max_steps
         self.current_step = 0
 
@@ -26,36 +26,28 @@ class CartPoleESP32Env(gym.Env):
             pos / self.max_pos
         ], dtype=np.float32)
 
+    def _calculate_reward(self, state, action, terminated):
+        t1, t2, v1, v2, pos = state
+        
+        if terminated:
+            return -10.0
+
+        upright_reward = -math.cos(t1) 
+        dist_penalty = (pos / self.max_pos) ** 2
+        velocity_penalty = 0.01 * (v1**2 + v2**2)
+        action_penalty = 0.01 * (action**2)
+
+        reward = upright_reward - (0.1 * dist_penalty) - velocity_penalty - action_penalty
+        return float(reward)
+
     def reset(self, seed=None, options=None):
         super().reset(seed=seed)
         self.current_step = 0
 
         self.esp.move(10.0) 
+        time.sleep(1.5)
         
-        start_wait = time.time()
-        while True:
-            if time.time() - start_wait > 5.0:
-                print("Warning: Reset timed out!")
-                self.esp.move(0.0)
-                break
-
-            state = self.esp.receive_state()
-
-            if state is None:
-                continue
-                
-            t1, t2, v1, v2, pos = state
-            
-            if abs(pos) < 50:
-                self.esp.move(0.0)
-                time.sleep(0.1) 
-                break
-            
-            time.sleep(0.01)
-
-        for _ in range(10):
-            self.esp.receive_state()
-            
+        self.esp.serial.reset_input_buffer()
         state = self.esp.receive_state()
         while state is None:
             state = self.esp.receive_state()
@@ -66,31 +58,24 @@ class CartPoleESP32Env(gym.Env):
         self.current_step += 1
         act = np.clip(action[0], -1.0, 1.0)
 
+        self.esp.serial.reset_input_buffer()
         self.esp.move(float(act))
+
         raw_state = self.esp.receive_state()
         while raw_state is None:
             raw_state = self.esp.receive_state()
 
-        obs = self._get_obs(raw_state)
-        t1, t2, v1, v2, pos = raw_state
-        
-        upright_reward = -math.cos(t1) + 0.5
-        dist_penalty = (pos / self.max_pos) ** 2
-        
-        reward = float(upright_reward - (0.01 * dist_penalty))
-        
         terminated = False
-        if abs(pos) > self.max_pos:
+        if abs(raw_state[4]) > self.max_pos:
             terminated = True
-            print("Episode terminated.")
-            reward -= 10.0 
             self.esp.move(0.0)
 
-        truncated = False
-        if self.current_step >= self.max_episode_steps:
-            truncated = True
-            print("Episode length truncated.")
+        truncated = self.current_step >= self.max_episode_steps
+        if truncated:
             self.esp.move(0.0)
+
+        reward = self._calculate_reward(raw_state, act, terminated)
+        obs = self._get_obs(raw_state)
 
         return obs, reward, terminated, truncated, {}
 

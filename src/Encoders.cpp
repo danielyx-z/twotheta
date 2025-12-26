@@ -5,8 +5,8 @@
 #define TCA9548A_ADDR 0x70
 #define I2C_SDA_PIN 21
 #define I2C_SCL_PIN 22
-#define ENCODER1_CHANNEL 1 //SHOULDER ITS REVERSED
-#define ENCODER2_CHANNEL 0 //THIS ONE IS THE ELKBOW
+#define ENCODER1_CHANNEL 1 
+#define ENCODER2_CHANNEL 0 
 
 AS5600 encoder1;
 AS5600 encoder2;
@@ -26,9 +26,10 @@ void setupEncoders() {
   static unsigned long lastTry = 0;
 
   Wire.begin(I2C_SDA_PIN, I2C_SCL_PIN);
+  Wire.setClock(400000);
 
   while (!enc1 || !enc2) {
-    if (millis() - lastTry >= 5000) {
+    if (millis() - lastTry >= 1000) {
       lastTry = millis();
 
       tcaSelect(ENCODER1_CHANNEL);
@@ -44,47 +45,28 @@ void setupEncoders() {
         enc2 = true;
         Serial.println("Encoder 2 ready");
       }
-
-      if (enc1 && enc2) {
-        Serial.println("All encoders initialized.");
-        Serial.print("Should be 0, 0: ");
-        Serial.print(getAngle(1), 3);
-        Serial.print(' ');
-        Serial.println(getAngle(2), 3);
-      }
     }
     delay(10);
   }
 }
 
-float getAngle(int joint) {
+void getAngleAndVelocity(int joint, float &angle, float &velocity) {
   uint16_t raw = 0;
 
   if (joint == 1) {
     tcaSelect(ENCODER1_CHANNEL);
     raw = encoder1.rawAngle();
-    raw = (raw - offset1) & 4095; //lmfao, same as mod for 2^n - 1
+    raw = (raw - offset1) & 4095;
+    // readAngle updates internal state for velocity calculation
+    encoder1.readAngle(); 
+    velocity = encoder1.getAngularSpeed(AS5600_MODE_RADIANS, false);
   } else if (joint == 2) {
     tcaSelect(ENCODER2_CHANNEL);
     raw = encoder2.rawAngle();
     raw = (raw - offset2) & 4095;
-  }
-
-  return raw * AS5600_RAW_TO_RADIANS;
-}
-
-float getAngularVelocity(int joint) {
-  if (joint == 1) {
-    tcaSelect(ENCODER1_CHANNEL);
-    encoder1.readAngle();
-    return encoder1.getAngularSpeed(AS5600_MODE_RADIANS, false);
-  }
-
-  if (joint == 2) {
-    tcaSelect(ENCODER2_CHANNEL);
     encoder2.readAngle();
-    return encoder2.getAngularSpeed(AS5600_MODE_RADIANS, false);
+    velocity = encoder2.getAngularSpeed(AS5600_MODE_RADIANS, false);
   }
 
-  return 0.0f;
+  angle = raw * AS5600_RAW_TO_RADIANS;
 }

@@ -2,7 +2,7 @@
 #include "Motor.h"
 #include "Encoders.h" 
 
-const unsigned long SERIAL_INTERVAL = 1; 
+const unsigned long SERIAL_INTERVAL = 20; 
 const uint8_t STATE_HEADER[2] = {0xAA, 0x55};
 const uint8_t CMD_HEADER[2] = {0x55, 0xAA};
 const int CMD_PACKET_SIZE = 6;
@@ -63,11 +63,11 @@ void loop() {
   if (now - lastSerialTime >= SERIAL_INTERVAL) {
     lastSerialTime = now;
 
-    float t1 = getAngle(1);
-    float t2 = getAngle(2);
-    float v1 = getAngularVelocity(1);
-    float v2 = getAngularVelocity(2);
+    float t1, v1, t2, v2;
+    getAngleAndVelocity(1, t1, v1);
+    getAngleAndVelocity(2, t2, v2);
     float p = (float)stepper->getCurrentPosition();
+
 
     uint8_t buffer[22];
     buffer[0] = STATE_HEADER[0];

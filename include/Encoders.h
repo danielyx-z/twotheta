@@ -4,7 +4,5 @@
 #include <Arduino.h>
 
 void setupEncoders();
-float getAngle(int joint);
-float getAngularVelocity(int joint);
-
+void getAngleAndVelocity(int joint, float &angle, float &velocity);
 #endif // ENCODERS_H
