@@ -42,9 +42,9 @@ void loop() {
         memcpy(&action, serialBuffer + 2, 4); 
         
         if (isfinite(action)) {
-          // Detect Reset Command
-          if (action > 5.0) {
+          if (action > 5.0) { // > 5 = home
              resetMotorPosition();
+             while (Serial.available()) Serial.read();
           } 
           else {
               moveStepper(action); 

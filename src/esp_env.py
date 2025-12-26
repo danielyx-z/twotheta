@@ -14,6 +14,7 @@ class CartPoleESP32Env(gym.Env):
         self.max_pos = 31900.0  
         self.max_episode_steps = max_steps
         self.current_step = 0
+        self.is_initialized = False
 
     def _get_obs(self, state):
         t1, t2, v1, v2, pos = state
@@ -31,7 +32,7 @@ class CartPoleESP32Env(gym.Env):
 
         upright_reward = (-math.cos(t1 - 0.0275) + 1) ** 2
         dist_penalty = 0.5 * (pos / self.max_pos) ** 2
-        velocity_penalty = 0.00 * (v1**2)
+        velocity_penalty = 0.001 * (v1**2)
         action_penalty = 0.01 * (action**2)
 
         reward = upright_reward - dist_penalty - velocity_penalty - action_penalty
@@ -41,12 +42,20 @@ class CartPoleESP32Env(gym.Env):
         super().reset(seed=seed)
         self.current_step = 0
 
-        self.esp.move(10.0) 
-        time.sleep(5) 
+        if not self.is_initialized:
+            self.is_initialized = True
+            self.esp.move(10);
+        start_time = time.time()
+        time.sleep(3)
         self.esp.serial.reset_input_buffer()
         state = None
         while True:
+            if time.time() - start_time > 90.0:
+                print("Reset Timeout! Forcing start...")
+                break
+            
             state = self.esp.receive_state()
+
             if state is not None:
                 t1 = state[0]
                 v1 = state[2]
@@ -62,6 +71,7 @@ class CartPoleESP32Env(gym.Env):
         return self._get_obs(state), {}
 
     def step(self, action):
+        start_time = time.perf_counter()
         self.current_step += 1
         act = np.clip(action[0], -1.0, 1.0)
 
@@ -72,13 +82,20 @@ class CartPoleESP32Env(gym.Env):
         while raw_state is None:
             raw_state = self.esp.receive_state()
 
-        terminated = abs(raw_state[4]) > self.max_pos
+        terminated = abs(raw_state[4]) > self.max_pos or abs(raw_state[2]) > math.pi * 3 #if its propeller also fail
         truncated = self.current_step >= self.max_episode_steps
         
+        
+
         if terminated or truncated:
-            self.esp.move(0.0)
+            self.esp.move(10) #beign homing early
 
         reward = self._calculate_reward(raw_state, act, terminated)
+
+
+        duration = time.perf_counter() - start_time
+        if duration > 0.03:
+            print("duration exceeded, something is slow! took ", duration, "s to take a step.")
         return self._get_obs(raw_state), reward, terminated, truncated, {}
 
     def close(self):
