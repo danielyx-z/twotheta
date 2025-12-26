@@ -36,7 +36,7 @@ void resetMotorPosition() {
     isEnabled = true;
     lastMoveTime = millis();
 
-    stepper->setSpeedInHz(20000); 
+    stepper->setSpeedInHz(16000); 
     stepper->setAcceleration(20000);
     stepper->runForward();
 

@@ -29,7 +29,7 @@ class CartPoleESP32Env(gym.Env):
         if terminated:
             return -20.0
 
-        upright_reward = -math.cos(t1 - 0.0275) 
+        upright_reward = (-math.cos(t1 - 0.0275) + 1) ** 2
         dist_penalty = 0.5 * (pos / self.max_pos) ** 2
         velocity_penalty = 0.00 * (v1**2)
         action_penalty = 0.01 * (action**2)
@@ -48,10 +48,11 @@ class CartPoleESP32Env(gym.Env):
         while True:
             state = self.esp.receive_state()
             if state is not None:
+                t1 = state[0]
                 v1 = state[2]
-                if abs(v1) < 0.01:
+                if abs(v1) < 0.01 and abs(t1) < 0.1: #note the instnataneous velocity bug here
                     break
-            time.sleep(0.5)
+            time.sleep(0.001)
 
         self.esp.serial.reset_input_buffer()
         state = self.esp.receive_state()
