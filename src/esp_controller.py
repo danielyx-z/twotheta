@@ -17,6 +17,7 @@ class ESP32SerialController:
             time.sleep(0.5)  # Allow ESP32 to reset
             self.serial.reset_input_buffer()
             self.serial.reset_output_buffer()
+            print("ESP32 connection initialized.")
         except serial.SerialException as e:
             print(f"Error: Could not open serial port {port}: {e}")
             sys.exit(1)

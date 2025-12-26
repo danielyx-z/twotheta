@@ -16,7 +16,7 @@ class CartPoleESP32Env(gym.Env):
         self.max_episode_steps = max_steps
         self.current_step = 0
         self.is_initialized = False
-        print("Relative angles set.")
+
 
     def _get_obs(self, state):
         t1, t2, v1, v2, pos = state
@@ -57,22 +57,26 @@ class CartPoleESP32Env(gym.Env):
                 break
 
             state = self.esp.receive_state()
-            if state is None: continue
+            if state is None: 
+                time.sleep(0.001)
+                continue
 
             t1, v1, pos = state[0], state[2], state[4]
             u_energy = 0.2 * v1 * math.cos(t1)
-            u_center = 0.005 * (pos / self.max_pos)
+            u_center = 0.01 * (pos / self.max_pos)
             action = -np.clip(u_energy + u_center, -0.8, 0.8)
 
-            if abs(v1) < 0.2 and abs(t1) < 0.2:
+            if abs(v1) < 0.2 and math.cos(t1) > 0.99:
                 stabilized += 1
                 action = u_center
-                if stabilized > 300:  #stable for 1s
+                if stabilized > 50:  #stable for enough time
                     break
             if time.time() - last_move > 0.2:
                 self.esp.move(float(action))
+                last_move = time.time()
 
-            time.sleep(0.005)
+            time.sleep(0.01)
+            
 
         print("done damping.")
 
