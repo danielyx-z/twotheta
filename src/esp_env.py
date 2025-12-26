@@ -51,8 +51,6 @@ class CartPoleESP32Env(gym.Env):
         self.damping_pid.reset()
         
         start_time = time.time()
-        self.esp.serial.reset_input_buffer()
-        
 
         stabilized = 0
         while True:
@@ -60,8 +58,10 @@ class CartPoleESP32Env(gym.Env):
                 print("Reset Timeout! Forcing start...")
                 break
 
+            self.esp.serial.reset_input_buffer()
             state = self.esp.receive_state()
-            if not state: continue
+            if state is None: continue
+
             t1, v1, pos = state[0], state[2], state[4]
             u_energy = 0.2 * v1 * math.cos(t1)
             u_center = 0.1 * (pos / self.max_pos)
@@ -102,7 +102,6 @@ class CartPoleESP32Env(gym.Env):
         truncated = self.current_step >= self.max_episode_steps
         
         
-
         if terminated or truncated:
             self.esp.move(10) #beign homing early
 
