@@ -15,6 +15,9 @@ def make_env():
 def train():
     env = DummyVecEnv([make_env])
 
+    # Define the 64x64 architecture
+    policy_kwargs = dict(net_arch=dict(pi=[64, 64], qf=[64, 64]))
+
     if os.path.exists(f"{MODEL_NAME}.zip"):
         print("Loading existing SAC model...")
         model = SAC.load(MODEL_NAME, env=env, device="cuda")
@@ -23,6 +26,7 @@ def train():
         model = SAC(
             "MlpPolicy",
             env,
+            policy_kwargs=policy_kwargs,
             device="cuda",
             verbose=1,
             learning_rate=5e-4,
@@ -40,13 +44,8 @@ def train():
     try:
         steps_per_save = 1000
         total_steps = 0
-
         while total_steps < 50000:
-            model.learn(
-                total_timesteps=steps_per_save, 
-                reset_num_timesteps=False
-            )
-            
+            model.learn(total_timesteps=steps_per_save, reset_num_timesteps=False)
             total_steps += steps_per_save
             model.save(MODEL_NAME)
             print(f"--- Saved at {total_steps} total steps ---")

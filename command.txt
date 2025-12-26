@@ -2,3 +2,6 @@ src\.venv\Scripts\activate
 
 pip install pygame stable-baselines3 gymnasium pyserial tensorboard keyboard control
 
+
+
+tensorboard --logdir ./tensorboard_logs/

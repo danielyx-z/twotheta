@@ -3,7 +3,8 @@
 
 const int MAX_SPEED_HZ = 100000; 
 const int ACCELERATION = 850000; 
-const int ENDPOINT = 32000; 
+const int ENDPOINT = 32000; // Reduced slightly for safety margin
+const int SAFETY_ZONE = 200; // Steps before endpoint to start slowing down
 const unsigned long HOLD_DURATION_MS = 500; 
 const int LIMIT_SWITCH_PIN = 19; 
 const int CENTER_OFFSET = 42500;
@@ -31,12 +32,11 @@ void setupMotor() {
 
 void resetMotorPosition() {
     if (!stepper) return;
-
     stepper->enableOutputs();
     isEnabled = true;
     lastMoveTime = millis();
 
-    stepper->setSpeedInHz(16000); 
+    stepper->setSpeedInHz(20000); 
     stepper->setAcceleration(20000);
     stepper->runForward();
 
@@ -46,7 +46,6 @@ void resetMotorPosition() {
 
     stepper->forceStop();
     delay(100); 
-    
     stepper->setCurrentPosition(0);
     stepper->moveTo(-CENTER_OFFSET);
 
@@ -64,13 +63,27 @@ void moveStepper(float action) {
     action = constrain(action, -1.0f, 1.0f);
     long pos = stepper->getCurrentPosition();
 
-    if ((pos >= ENDPOINT && action > 0) || (pos <= -ENDPOINT && action < 0)) {
-        action = 0; 
+    if (pos >= ENDPOINT && action > 0) {
+        stepper->forceStopAndNewPosition(ENDPOINT);
+        return;
+    }
+    if (pos <= -ENDPOINT && action < 0) {
+        stepper->forceStopAndNewPosition(-ENDPOINT);
+        return;
     }
 
-    uint32_t speed = (uint32_t)(abs(action) * MAX_SPEED_HZ);
+    float speed_scale = 1.0f;
+    if (action > 0) {
+        long dist = ENDPOINT - pos;
+        if (dist < SAFETY_ZONE) speed_scale = (float)dist / (float)SAFETY_ZONE;
+    } else if (action < 0) {
+        long dist = pos - (-ENDPOINT);
+        if (dist < SAFETY_ZONE) speed_scale = (float)dist / (float)SAFETY_ZONE;
+    }
+
+    uint32_t target_speed = (uint32_t)(abs(action) * MAX_SPEED_HZ * speed_scale);
     
-    if (speed == 0) {
+    if (target_speed < 100) {
         stepper->stopMove(); 
     } else {
         if (!isEnabled) {
@@ -78,10 +91,10 @@ void moveStepper(float action) {
             isEnabled = true;
         }
         lastMoveTime = millis(); 
-        stepper->setSpeedInHz(speed);
+        stepper->setSpeedInHz(target_speed);
         
-        if (action > 0) stepper->runForward();
-        else stepper->runBackward();
+        if (action > 0) stepper->moveTo(ENDPOINT);
+        else stepper->moveTo(-ENDPOINT);
     }
 }
 
@@ -89,10 +102,11 @@ void checkMotorSafety() {
     if (!stepper) return;
 
     long pos = stepper->getCurrentPosition();
-    int32_t speed = stepper->getCurrentSpeedInMilliHz();
 
-    if ((pos >= ENDPOINT && speed > 0) || (pos <= -ENDPOINT && speed < 0)) {
-        stepper->forceStopAndNewPosition(pos); 
+    if (pos > ENDPOINT) {
+        stepper->forceStopAndNewPosition(ENDPOINT);
+    } else if (pos < -ENDPOINT) {
+        stepper->forceStopAndNewPosition(-ENDPOINT);
     }
 
     if (isEnabled && !stepper->isRunning()) {

@@ -2,3 +2,5 @@
 .vscode/
 __pycache__/
 .venv
+
+tensorboard_logs
