@@ -43,7 +43,7 @@ def train():
             device="cuda",
             verbose=1,
             learning_rate=5e-4,
-            buffer_size=10000,
+            buffer_size=30000,
             learning_starts=1000,
             batch_size=64,
             tau=0.005,

@@ -15,8 +15,8 @@ class CartPoleESP32Env(gym.Env):
         self.max_pos = 31900.0  
         self.max_episode_steps = max_steps
         self.current_step = 0
-        self.damping_pid = VelocityPID(kp=1, ki=0.0, kd=0.01, max_speed=0.8)
         self.is_initialized = False
+        print("Relative angles set.")
 
     def _get_obs(self, state):
         t1, t2, v1, v2, pos = state
@@ -48,8 +48,6 @@ class CartPoleESP32Env(gym.Env):
             self.esp.move(10.0) # Trigger hardware homing
             self.is_initialized = True
 
-        self.damping_pid.reset()
-        
         start_time = time.time()
         last_move = time.time()
         stabilized = 0
@@ -63,10 +61,10 @@ class CartPoleESP32Env(gym.Env):
 
             t1, v1, pos = state[0], state[2], state[4]
             u_energy = 0.2 * v1 * math.cos(t1)
-            u_center = 0.05 * (pos / self.max_pos)
+            u_center = 0.005 * (pos / self.max_pos)
             action = -np.clip(u_energy + u_center, -0.8, 0.8)
 
-            if abs(v1) < 0.3 and abs(t1) < 0.2:
+            if abs(v1) < 0.2 and abs(t1) < 0.2:
                 stabilized += 1
                 action = u_center
                 if stabilized > 300:  #stable for 1s

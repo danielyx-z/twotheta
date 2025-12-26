@@ -45,14 +45,14 @@ void resetMotorPosition() {
     isEnabled = true;
     lastMoveTime = millis();
 
-    stepper->setSpeedInHz(18000); 
+    stepper->setSpeedInHz(12000); 
     stepper->setAcceleration(20000);
     stepper->runForward();
 
     while (digitalRead(LIMIT_SWITCH_PIN) == HIGH) {
         delay(1); 
     }
-
+    stepper->setSpeedInHz(20000); 
     stepper->forceStop();
     delay(100); 
     stepper->setCurrentPosition(0);
