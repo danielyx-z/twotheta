@@ -44,7 +44,6 @@ void loop() {
         if (isfinite(action)) {
           if (action > 5.0) { // > 5 = home
              resetMotorPosition();
-             while (Serial.available()) Serial.read();
           } 
           else {
               moveStepper(action); 

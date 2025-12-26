@@ -32,9 +32,14 @@ void setupMotor() {
 
 void resetMotorPosition() {
     if (!stepper) return;
-    checkMotorSafety();
-
-    stepper->forceStop(); 
+    if (stepper->isRunning()) {
+        stepper->setSpeedInHz(0); 
+        // Vital: Wait for the library to confirm it has truly stopped
+        while (stepper->isRunning()) {
+            delay(1);
+        }
+        delay(50); // Small settle time
+    }
     delay(50); // Short pause to let physical vibration settle
     stepper->enableOutputs();
     isEnabled = true;
