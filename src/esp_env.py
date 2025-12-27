@@ -47,7 +47,7 @@ class CartPoleESP32Env(gym.Env):
     def reset(self, seed=None, options=None):
         super().reset(seed=seed)
         self.current_step = 0
-
+        self.esp.serial.reset_output_buffer()
         if not self.is_initialized:
             self.esp.move(10.0) # Trigger hardware homing
             self.is_initialized = True
@@ -71,25 +71,28 @@ class CartPoleESP32Env(gym.Env):
                 break
 
             state = self.esp.receive_state()
-            if state is None: 
-                time.sleep(0.001)
-                continue
+            while state is None:
+                print("n")
+                state = self.esp.receive_state()
 
             t1, v1, pos = state[0], state[2], state[4]
-            u_energy = 0.2 * v1 * math.cos(t1)
-            u_center = 0.1 * (pos / self.max_pos)
-            action = -np.clip(u_energy + u_center, -0.8, 0.8)
+            u_energy = 0.1 * v1 * math.cos(t1)
+            u_center = 0.01 * (pos / self.max_pos)
+            action = -np.clip(u_energy + u_center, -0.9, 0.9)
 
-            if abs(v1) < 0.3 and math.cos(t1) > 0.97:
+            if abs(v1) < 0.2 and math.cos(t1) > 0.98:
                 stabilized += 1
-                action = u_center
-                if stabilized > 50:  
+                if stabilized > 30:  
                     break
-            if time.time() - last_move > 0.2:
+            else:
+                stabilized = 0
+
+            if time.time() - last_move > 0.1:
                 self.esp.move(float(action))
                 last_move = time.time()
 
             time.sleep(0.01)      
+
         self.esp.move(0.0) 
 
     def step(self, action):
@@ -133,3 +136,10 @@ class CartPoleESP32Env(gym.Env):
     def close(self):
         self.esp.move(0.0) 
         self.esp.close()
+
+if __name__ == "__main__":
+    test = CartPoleESP32Env()
+    print("swing it")
+    time.sleep(2)
+    test.active_damp()
+    print("dampened")

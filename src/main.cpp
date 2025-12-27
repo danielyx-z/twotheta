@@ -2,7 +2,7 @@
 #include "Motor.h"
 #include "Encoders.h" 
 
-const unsigned long SERIAL_INTERVAL = 15; 
+const unsigned long SERIAL_INTERVAL = 1; 
 const uint8_t STATE_HEADER[2] = {0xAA, 0x55};
 const uint8_t CMD_HEADER[2] = {0x55, 0xAA};
 const int CMD_PACKET_SIZE = 6;
@@ -43,7 +43,10 @@ void loop() {
         
         if (isfinite(action)) {
           if (action > 5.0) { // > 5 = home
-             resetMotorPosition();
+              resetMotorPosition();
+              while (Serial.available() > 0) {
+                Serial.read(); // discard bytes
+              }
           } 
           else {
               moveStepper(action); 
