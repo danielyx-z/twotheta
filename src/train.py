@@ -50,7 +50,7 @@ def train():
             gamma=0.99,
             ent_coef="auto_0.1",
             train_freq=(1, "step"),
-            gradient_steps=5,
+            gradient_steps=10,
             tensorboard_log=LOG_DIR
         )
         start_steps = 0
