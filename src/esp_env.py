@@ -58,6 +58,7 @@ class CartPoleESP32Env(gym.Env):
             state = self.esp.receive_state()
 
         self.last_step_time = time.perf_counter()
+
         # Default to 0.015 on first frame to prevent NN spike
         return self._get_obs(state, 0.015), {}
 
@@ -72,13 +73,12 @@ class CartPoleESP32Env(gym.Env):
 
             state = self.esp.receive_state()
             while state is None:
-                print("n")
                 state = self.esp.receive_state()
 
             t1, v1, pos = state[0], state[2], state[4]
-            u_energy = 0.1 * v1 * math.cos(t1)
+            u_energy = 0.15 * v1 * math.cos(t1)
             u_center = 0.01 * (pos / self.max_pos)
-            action = -np.clip(u_energy + u_center, -0.9, 0.9)
+            action = -np.clip(u_energy + u_center, -0.8, 0.8)
 
             if abs(v1) < 0.2 and math.cos(t1) > 0.98:
                 stabilized += 1
@@ -87,7 +87,7 @@ class CartPoleESP32Env(gym.Env):
             else:
                 stabilized = 0
 
-            if time.time() - last_move > 0.1:
+            if time.time() - last_move > 0.05:
                 self.esp.move(float(action))
                 last_move = time.time()
 
@@ -102,6 +102,9 @@ class CartPoleESP32Env(gym.Env):
         current_time = time.perf_counter()
         actual_dt = current_time - self.last_step_time
         self.last_step_time = current_time
+
+        assert not 0.1 < actual_dt < 1, f"sometihng up with actual dt {actual_dt}"
+
 
         self.esp.serial.reset_input_buffer()
         raw_state = self.esp.receive_state()
@@ -125,7 +128,6 @@ class CartPoleESP32Env(gym.Env):
         if terminated or truncated:
             if is_spinning:
                 print("Terminating episode due to overspeed.")
-
             self.active_damp()
             self.esp.move(10)
             
