@@ -29,7 +29,6 @@ def train():
 
     policy_kwargs = dict(net_arch=dict(pi=[64, 64], qf=[64, 64]))
 
-    # Target hyperparameters for both fresh init and loading
     params = {
         "learning_rate": 5e-4,
         "buffer_size": 10000,
@@ -39,22 +38,30 @@ def train():
         "gamma": 0.99,
         "ent_coef": "auto_0.1",
         "train_freq": (1, "episode"),
-        "gradient_steps": 1200, #some ghreater than 1 ratio train : exp
+        "gradient_steps": 1200,
         "tensorboard_log": LOG_DIR
     }
 
     ckpt = latest_checkpoint()
     if ckpt:
-        print("loading from latest checkpoint", ckpt)
+        print("Loading from latest checkpoint:", ckpt)
         model = SAC.load(
-            ckpt, 
-            env=env, 
-            device="cuda", 
+            ckpt,
+            env=env,
+            device="cuda",
             custom_objects=params
         )
         start_steps = int(ckpt.split("_")[-1].split(".")[0])
+        # Load replay buffer if exists
+        replay_path = ckpt.replace(".zip", "_replay.pkl")
+        if os.path.exists(replay_path):
+            print("Loading replay buffer:", replay_path)
+            model.load_replay_buffer(replay_path)
+        buffer = model.replay_buffer
+        print(f"Replay buffer size: {buffer.size()}/{buffer.buffer_size}")
+
     else:
-        print("starting from scratch")
+        print("Starting from scratch")
         model = SAC(
             "MlpPolicy",
             env,
@@ -71,11 +78,17 @@ def train():
         while total_steps < TOTAL_TIMESTEPS:
             model.learn(total_timesteps=STEPS_PER_SAVE, reset_num_timesteps=False)
             total_steps += STEPS_PER_SAVE
+
             path = os.path.join(CKPT_DIR, f"{MODEL_NAME}_{total_steps}.zip")
             model.save(path)
-            print(f"Saved checkpoint: {path}")
+            replay_path = path.replace(".zip", "_replay.pkl")
+            model.save_replay_buffer(replay_path)
+
+            buffer = model.replay_buffer
+            print(f"Saved checkpoint: {path} | Replay buffer size: {buffer.size()}/{buffer.buffer_size}")
+
     except KeyboardInterrupt:
-        pass
+        print("Training interrupted")
     finally:
         env.close()
 
