@@ -32,14 +32,14 @@ def train():
     # Target hyperparameters for both fresh init and loading
     params = {
         "learning_rate": 5e-4,
-        "buffer_size": 30000,
+        "buffer_size": 10000,
         "learning_starts": 1000,
         "batch_size": 128,
         "tau": 0.005,
         "gamma": 0.99,
         "ent_coef": "auto_0.1",
         "train_freq": (1, "episode"),
-        "gradient_steps": 2000, #some ghreater than 1 ratio train : exp
+        "gradient_steps": 1000, #some ghreater than 1 ratio train : exp
         "tensorboard_log": LOG_DIR
     }
 

@@ -28,7 +28,7 @@ class CartPoleESP32Env(gym.Env):
             math.sin(t1), math.cos(t1),
             v1, 
             pos / self.max_pos,
-            dt_measured
+            dt_measured * 60
         ], dtype=np.float32)
 
     def _calculate_reward(self, state, action, terminated):
