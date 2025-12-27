@@ -100,8 +100,6 @@ class CartPoleESP32Env(gym.Env):
         actual_dt = current_time - self.last_step_time
         self.last_step_time = current_time
 
-        print(f"dt: {actual_dt:.4f}")
-
         self.esp.serial.reset_input_buffer()
         raw_state = self.esp.receive_state()
         while raw_state is None:

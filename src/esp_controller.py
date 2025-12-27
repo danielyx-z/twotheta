@@ -55,6 +55,7 @@ class ESP32SerialController:
             i -= 1
         
         return state
+    
     def get_buffer_size(self):
         return self.serial.in_waiting if self.serial else 0
 
