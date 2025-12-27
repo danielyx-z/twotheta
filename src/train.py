@@ -15,7 +15,7 @@ STEPS_PER_SAVE = 500
 os.makedirs(CKPT_DIR, exist_ok=True)
 
 def make_env():
-    return Monitor(CartPoleESP32Env(port=PORT, baudrate=BAUD, max_steps=1000))
+    return Monitor(CartPoleESP32Env(port=PORT, baudrate=BAUD, max_steps=600))
 
 def latest_checkpoint():
     files = [f for f in os.listdir(CKPT_DIR) if f.endswith(".zip")]
@@ -29,29 +29,39 @@ def train():
 
     policy_kwargs = dict(net_arch=dict(pi=[64, 64], qf=[64, 64]))
 
+    # Target hyperparameters for both fresh init and loading
+    params = {
+        "learning_rate": 5e-4,
+        "buffer_size": 30000,
+        "learning_starts": 1000,
+        "batch_size": 64,
+        "tau": 0.005,
+        "gamma": 0.99,
+        "ent_coef": "auto_0.1",
+        "train_freq": (1, "episode"),
+        "gradient_steps": 3000, #5:1 ratio
+        "tensorboard_log": LOG_DIR
+    }
+
     ckpt = latest_checkpoint()
     if ckpt:
-        model = SAC.load(ckpt, env=env, device="cuda")
+        print("loading from latest checkpoint", ckpt)
+        model = SAC.load(
+            ckpt, 
+            env=env, 
+            device="cuda", 
+            custom_objects=params
+        )
         start_steps = int(ckpt.split("_")[-1].split(".")[0])
-        print("loading from latest checkpoint", ckpt, "at ", start_steps, "steps")
-
     else:
+        print("starting from scratch")
         model = SAC(
             "MlpPolicy",
             env,
             policy_kwargs=policy_kwargs,
             device="cuda",
             verbose=1,
-            learning_rate=5e-4,
-            buffer_size=30000,
-            learning_starts=1000,
-            batch_size=64,
-            tau=0.005,
-            gamma=0.99,
-            ent_coef="auto_0.1",
-            train_freq=(1, "step"),
-            gradient_steps=10,
-            tensorboard_log=LOG_DIR
+            **params
         )
         start_steps = 0
 

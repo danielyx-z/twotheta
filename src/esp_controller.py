@@ -33,44 +33,28 @@ class ESP32SerialController:
         if not (self.serial and self.serial.is_open):
             return None
         
-        if self.serial.in_waiting < self.STATE_PACKET_SIZE:
+        buffer_size = self.serial.in_waiting
+        if buffer_size < self.STATE_PACKET_SIZE:
             return None
         
-        max_search = 200  
-        search_count = 0
+        # Read everything at once - ONE syscall instead of thousands
+        all_data = self.serial.read(buffer_size)
         
-        while self.serial.in_waiting >= self.STATE_PACKET_SIZE and search_count < max_search:
-            first_byte = self.serial.read(1)
-            if len(first_byte) == 0: break
-            
-            if first_byte[0] == 0xAA:
-                second_byte = self.serial.read(1)
-                if len(second_byte) == 0: break
-                
-                if second_byte[0] == 0x55:
-                    data = self.serial.read(20)
-                    if len(data) == 20:
-                        try:
-                            state = struct.unpack('5f', data)
-                            if all(math.isfinite(x) for x in state):
-                                # Skip ahead to the newest packet in the buffer
-                                while self.serial.in_waiting >= self.STATE_PACKET_SIZE:
-                                    peek1 = self.serial.read(1)
-                                    if len(peek1) > 0 and peek1[0] == 0xAA:
-                                        peek2 = self.serial.read(1)
-                                        if len(peek2) > 0 and peek2[0] == 0x55:
-                                            data = self.serial.read(20)
-                                            if len(data) == 20:
-                                                try:
-                                                    new_state = struct.unpack('5f', data)
-                                                    if all(math.isfinite(x) for x in new_state):
-                                                        state = new_state
-                                                except struct.error: pass
-                                return state
-                        except struct.error: pass
-            search_count += 1
-        return None
-
+        # Find the LAST valid packet
+        state = None
+        i = len(all_data) - self.STATE_PACKET_SIZE
+        
+        while i >= 0:
+            if all_data[i] == 0xAA and all_data[i+1] == 0x55:
+                try:
+                    new_state = struct.unpack('5f', all_data[i+2:i+22])
+                    if all(math.isfinite(x) for x in new_state):
+                        return new_state
+                except struct.error:
+                    pass
+            i -= 1
+        
+        return state
     def get_buffer_size(self):
         return self.serial.in_waiting if self.serial else 0
 
