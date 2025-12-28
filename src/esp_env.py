@@ -36,7 +36,7 @@ class CartPoleESP32Env(gym.Env):
 
         # 1. Termination: Don't make this too huge or the agent gets "scared" to move
         if terminated:
-            return -20.0 
+            return -30.0 
 
         # 2. Angle Reward (The Goal)
         # Distance to PI (top)

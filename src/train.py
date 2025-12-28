@@ -9,7 +9,7 @@ BAUD = 921600
 MODEL_NAME = "single_pendulum"
 LOG_DIR = "./tensorboard_logs/"
 CKPT_DIR = "./checkpoints"
-TOTAL_TIMESTEPS = 500000
+TOTAL_TIMESTEPS = 100000
 STEPS_PER_SAVE = 3000
 
 os.makedirs(CKPT_DIR, exist_ok=True)
@@ -32,13 +32,13 @@ def train():
     params = {
         "learning_rate": 3e-4,
         "buffer_size": 80000,
-        "learning_starts": 3000,
+        "learning_starts": 5000,
         "batch_size": 256,
         "tau": 0.005,
         "gamma": 0.99,
         "ent_coef": "auto_0.1",
         "train_freq": (1, "episode"),
-        "gradient_steps": 1200,
+        "gradient_steps": 1500,
         "tensorboard_log": LOG_DIR
     }
 

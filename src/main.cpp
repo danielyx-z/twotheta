@@ -14,15 +14,12 @@ int serialBufferIndex = 0;
 void setup() {
   Serial.begin(921600);
   delay(500);
-  pinMode(25, OUTPUT);
-  pinMode(24, OUTPUT);
-  digitalWrite(25, HIGH);
+  pinMode(24, OUTPUT); // Use 32 instead of 35
+  pinMode(25, OUTPUT); // Use 33 instead of 24
   digitalWrite(24, HIGH);
+  digitalWrite(25, HIGH);
   setupMotor();
   setupEncoders();
-  while (Serial.available() > 0) {
-    Serial.read(); // discard bytes
-  }
   Serial.println("Ok.");
 }
 
@@ -63,6 +60,7 @@ void loop() {
   checkMotorSafety();
 
   // 3. Telemetry
+  Serial.println("loop");
   unsigned long now = millis();
   if (now - lastSerialTime >= SERIAL_INTERVAL) {
     lastSerialTime = now;
