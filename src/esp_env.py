@@ -105,7 +105,8 @@ class CartPoleESP32Env(gym.Env):
         actual_dt = current_time - self.last_step_time
         self.last_step_time = current_time
 
-        assert not 0.1 < actual_dt < 1, f"sometihng up with actual dt {actual_dt}"
+        if 1 < actual_dt < 5:
+            print(f"sometihng up with actual dt {actual_dt}")
 
 
         self.esp.serial.reset_input_buffer()

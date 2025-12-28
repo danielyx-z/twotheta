@@ -9,13 +9,13 @@ BAUD = 921600
 MODEL_NAME = "single_pendulum"
 LOG_DIR = "./tensorboard_logs/"
 CKPT_DIR = "./checkpoints"
-TOTAL_TIMESTEPS = 100000
+TOTAL_TIMESTEPS = 500000
 STEPS_PER_SAVE = 500
 
 os.makedirs(CKPT_DIR, exist_ok=True)
 
 def make_env():
-    return Monitor(CartPoleESP32Env(port=PORT, baudrate=BAUD, max_steps=700))
+    return Monitor(CartPoleESP32Env(port=PORT, baudrate=BAUD, max_steps=1000))
 
 def latest_checkpoint():
     files = [f for f in os.listdir(CKPT_DIR) if f.endswith(".zip")]
@@ -30,8 +30,8 @@ def train():
     policy_kwargs = dict(net_arch=dict(pi=[64, 64], qf=[64, 64]))
 
     params = {
-        "learning_rate": 5e-4,
-        "buffer_size": 10000,
+        "learning_rate": 3e-4,
+        "buffer_size": 20000,
         "learning_starts": 1000,
         "batch_size": 128,
         "tau": 0.005,
@@ -51,6 +51,7 @@ def train():
             device="cuda",
             custom_objects=params
         )
+
         start_steps = int(ckpt.split("_")[-1].split(".")[0])
         # Load replay buffer if exists
         replay_path = ckpt.replace(".zip", "_replay.pkl")
@@ -59,7 +60,6 @@ def train():
             model.load_replay_buffer(replay_path)
         buffer = model.replay_buffer
         print(f"Replay buffer size: {buffer.size()}/{buffer.buffer_size}")
-
     else:
         print("Starting from scratch")
         model = SAC(
