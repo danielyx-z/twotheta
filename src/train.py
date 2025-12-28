@@ -9,7 +9,7 @@ BAUD = 921600
 MODEL_NAME = "single_pendulum"
 LOG_DIR = "./tensorboard_logs/"
 CKPT_DIR = "./checkpoints"
-TOTAL_TIMESTEPS = 50000
+TOTAL_TIMESTEPS = 100000
 STEPS_PER_SAVE = 500
 
 os.makedirs(CKPT_DIR, exist_ok=True)
@@ -88,7 +88,7 @@ def train():
             print(f"Saved checkpoint: {path} | Replay buffer size: {buffer.size()}/{buffer.buffer_size}")
 
     except KeyboardInterrupt:
-        print("Training interrupted")
+        pass
     finally:
         env.close()
 

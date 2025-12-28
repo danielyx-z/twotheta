@@ -18,7 +18,7 @@ class CartPoleESP32Env(gym.Env):
         self.is_initialized = False
         # We assume the hardware sends data every ~15ms. We don't enforce it with sleep.
         self.overspeed_counter = 0
-        self.MAX_OVERSPEED_FRAMES = 30
+        self.MAX_OVERSPEED_FRAMES = 25
         self.SPIN_THRESHOLD = 3 * math.pi #rad / s
         self.last_step_time = time.perf_counter()
 
@@ -36,13 +36,15 @@ class CartPoleESP32Env(gym.Env):
         if terminated:
             return -20.0
 
-        upright_reward = (-math.cos(t1 - 0.0275) + 1) ** 2
-        dist_penalty = 0.5 * (pos / self.max_pos) ** 2
-        velocity_penalty = 0.002 * (v1**2)
-        action_penalty = 0.01 * (action**2)
+        upright = (1 - math.cos(t1)) / 2
+        upright = upright ** 0.8
+        vel_gate = math.exp(- (v1 / 3.0) ** 2)
+        reward = upright * vel_gate
+        reward -= 0.3 * (pos / self.max_pos) ** 2
+        reward -= 0.01 * (action ** 2)
 
-        reward = upright_reward - dist_penalty - velocity_penalty - action_penalty
         return float(reward)
+
 
     def reset(self, seed=None, options=None):
         super().reset(seed=seed)
@@ -76,7 +78,7 @@ class CartPoleESP32Env(gym.Env):
                 state = self.esp.receive_state()
 
             t1, v1, pos = state[0], state[2], state[4]
-            u_energy = 0.15 * v1 * math.cos(t1)
+            u_energy = 0.2 * v1 * math.cos(t1)
             u_center = 0.01 * (pos / self.max_pos)
             action = -np.clip(u_energy + u_center, -0.8, 0.8)
 
@@ -87,7 +89,7 @@ class CartPoleESP32Env(gym.Env):
             else:
                 stabilized = 0
 
-            if time.time() - last_move > 0.05:
+            if time.time() - last_move > 0.1:
                 self.esp.move(float(action))
                 last_move = time.time()
 

@@ -20,7 +20,9 @@ void setup() {
   digitalWrite(24, HIGH);
   setupMotor();
   setupEncoders();
-  
+  while (Serial.available() > 0) {
+    Serial.read(); // discard bytes
+  }
   Serial.println("Ok.");
 }
 
