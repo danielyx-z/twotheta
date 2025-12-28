@@ -15,12 +15,11 @@ class CartPoleESP32Env(gym.Env):
         self.max_pos = 31900.0  
         self.max_episode_steps = max_steps
         self.current_step = 0
-        self.is_initialized = False
-        # We assume the hardware sends data every ~15ms. We don't enforce it with sleep.
         self.overspeed_counter = 0
-        self.MAX_OVERSPEED_FRAMES = 25
+        self.MAX_OVERSPEED_FRAMES = 20
         self.SPIN_THRESHOLD = 3 * math.pi #rad / s
         self.last_step_time = time.perf_counter()
+        self.first_step_of_episode = True
 
     def _get_obs(self, state, dt_measured):
         t1, t2, v1, v2, pos = state
@@ -32,37 +31,55 @@ class CartPoleESP32Env(gym.Env):
         ], dtype=np.float32)
 
     def _calculate_reward(self, state, action, terminated):
-        t1, t2, v1, v2, pos = state
+        # t1: 0=Bottom, pi=Top | v1: velocity | pos: cart position
+        t1, v1, pos = state[0], state[2], state[4]
+
+        # 1. Termination: Don't make this too huge or the agent gets "scared" to move
         if terminated:
-            return -20.0
+            return -20.0 
 
-        upright = (1 - math.cos(t1)) / 2
-        upright = upright ** 0.8
-        vel_gate = math.exp(- (v1 / 3.0) ** 2)
-        reward = upright * vel_gate
-        reward -= 0.3 * (pos / self.max_pos) ** 2
-        reward -= 0.01 * (action ** 2)
+        # 2. Angle Reward (The Goal)
+        # Distance to PI (top)
+        error = (t1 - math.pi + math.pi) % (2 * math.pi) - math.pi
+        r_swingup = -math.cos(t1)
+        
+        # Smooth Gaussian for the top
+        # Increased width slightly to make the "target" easier to find
+        r_precision = 2.0 * math.exp(-(error ** 2) / (2 * 0.2 ** 2))
 
-        return float(reward)
+        # 3. Position Penalty (The "Soft Rail")
+        # Instead of (pos/max_pos)**2 which is always pushing, 
+        # use a penalty that only bites near the edges.
+        # This gives the agent "room to breathe" in the middle 60% of the track.
+        pos_norm = abs(pos / self.max_pos)
+        if pos_norm < 0.6:
+            r_pos = 0.0
+        else:
+            # Steep penalty only near the ends to prevent slamming
+            r_pos = -2.0 * ((pos_norm - 0.6) / 0.4) ** 2
 
+        # 4. State-Dependent Velocity (The "Smart Brake")
+        # Only penalize velocity when we are trying to balance.
+        # This stops the 'stuck at the bottom' or 'slamming' issue.
+        uprightness = max(0, -math.cos(t1)) # Only positive when pole is above horizontal
+        r_velocity = -0.2 * uprightness * (v1 ** 2)
+
+        # 5. Small Action Penalty (To prevent high-frequency jitter)
+        r_action = -0.001 * (action ** 2)
+
+        return float(r_swingup + r_precision + r_pos + r_velocity + r_action)
 
     def reset(self, seed=None, options=None):
         super().reset(seed=seed)
         self.current_step = 0
         self.esp.serial.reset_output_buffer()
-        if not self.is_initialized:
-            self.esp.move(10.0) # Trigger hardware homing
-            self.is_initialized = True
-
-        self.esp.serial.reset_input_buffer()
-        state = self.esp.receive_state()
-        while state is None: 
-            state = self.esp.receive_state()
+        self.first_step_of_episode = True
+        self.esp.move(10.0) # Trigger hardware homing
 
         self.last_step_time = time.perf_counter()
 
-        # Default to 0.015 on first frame to prevent NN spike
-        return self._get_obs(state, 0.015), {}
+        # Dummy state
+        return self._get_obs(np.zeros(5, dtype=np.float32), 0.015), {}
 
     def active_damp(self):
         start_time = time.time()
@@ -98,6 +115,17 @@ class CartPoleESP32Env(gym.Env):
         self.esp.move(0.0) 
 
     def step(self, action):
+        if self.first_step_of_episode:
+            self.esp.serial.reset_input_buffer()
+            raw_state = self.esp.receive_state()
+            while raw_state is None:
+                raw_state = self.esp.receive_state()
+            
+            self.first_step_of_episode = False
+            # Update timing so the first 'dt' isn't huge (e.g., 3 seconds)
+            self.last_step_time = time.perf_counter()
+
+
         act = np.clip(action[0], -1.0, 1.0)
         self.esp.move(float(act))
 
@@ -106,7 +134,7 @@ class CartPoleESP32Env(gym.Env):
         self.last_step_time = current_time
 
         if 1 < actual_dt < 5:
-            print(f"sometihng up with actual dt {actual_dt}")
+            print(f"actual dt: {actual_dt}")
 
 
         self.esp.serial.reset_input_buffer()
@@ -132,8 +160,7 @@ class CartPoleESP32Env(gym.Env):
             if is_spinning:
                 print("Terminating episode due to overspeed.")
             self.active_damp()
-            self.esp.move(10)
-            
+
         reward = self._calculate_reward(raw_state, act, terminated)
         
         return self._get_obs(raw_state, actual_dt), reward, terminated, truncated, {}

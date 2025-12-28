@@ -10,7 +10,7 @@ MODEL_NAME = "single_pendulum"
 LOG_DIR = "./tensorboard_logs/"
 CKPT_DIR = "./checkpoints"
 TOTAL_TIMESTEPS = 500000
-STEPS_PER_SAVE = 500
+STEPS_PER_SAVE = 3000
 
 os.makedirs(CKPT_DIR, exist_ok=True)
 
@@ -27,13 +27,13 @@ def latest_checkpoint():
 def train():
     env = DummyVecEnv([make_env])
 
-    policy_kwargs = dict(net_arch=dict(pi=[64, 64], qf=[64, 64]))
+    policy_kwargs = dict(net_arch=dict(pi=[128, 64], qf=[128, 64]))
 
     params = {
         "learning_rate": 3e-4,
-        "buffer_size": 20000,
-        "learning_starts": 1000,
-        "batch_size": 128,
+        "buffer_size": 80000,
+        "learning_starts": 3000,
+        "batch_size": 256,
         "tau": 0.005,
         "gamma": 0.99,
         "ent_coef": "auto_0.1",
@@ -60,6 +60,7 @@ def train():
             model.load_replay_buffer(replay_path)
         buffer = model.replay_buffer
         print(f"Replay buffer size: {buffer.size()}/{buffer.buffer_size}")
+
     else:
         print("Starting from scratch")
         model = SAC(
