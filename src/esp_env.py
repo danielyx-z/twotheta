@@ -34,40 +34,21 @@ class CartPoleESP32Env(gym.Env):
         # t1: 0=Bottom, pi=Top | v1: velocity | pos: cart position
         t1, v1, pos = state[0], state[2], state[4]
 
-        # 1. Termination: Don't make this too huge or the agent gets "scared" to move
         if terminated:
             return -30.0 
 
-        # 2. Angle Reward (The Goal)
-        # Distance to PI (top)
         error = (t1 - math.pi + math.pi) % (2 * math.pi) - math.pi
-        r_swingup = -math.cos(t1)
+        r_swingup = -math.cos(t1) + 1
         
         # Smooth Gaussian for the top
-        # Increased width slightly to make the "target" easier to find
-        r_precision = 2.0 * math.exp(-(error ** 2) / (2 * 0.2 ** 2))
+        r_precision = 2.0 * math.exp(-(error ** 2) / (2 * 0.3 ** 2))
 
-        # 3. Position Penalty (The "Soft Rail")
-        # Instead of (pos/max_pos)**2 which is always pushing, 
-        # use a penalty that only bites near the edges.
-        # This gives the agent "room to breathe" in the middle 60% of the track.
-        pos_norm = abs(pos / self.max_pos)
-        if pos_norm < 0.6:
-            r_pos = 0.0
-        else:
-            # Steep penalty only near the ends to prevent slamming
-            r_pos = -2.0 * ((pos_norm - 0.6) / 0.4) ** 2
+        r_pos = -0.01 * abs(pos / self.max_pos)
 
-        # 4. State-Dependent Velocity (The "Smart Brake")
-        # Only penalize velocity when we are trying to balance.
-        # This stops the 'stuck at the bottom' or 'slamming' issue.
         uprightness = max(0, -math.cos(t1)) # Only positive when pole is above horizontal
-        r_velocity = -0.2 * uprightness * (v1 ** 2)
+        r_velocity = -0.08 * uprightness * (v1 ** 2)
 
-        # 5. Small Action Penalty (To prevent high-frequency jitter)
-        r_action = -0.001 * (action ** 2)
-
-        return float(r_swingup + r_precision + r_pos + r_velocity + r_action)
+        return float(r_swingup + r_precision + r_pos + r_velocity)
 
     def reset(self, seed=None, options=None):
         super().reset(seed=seed)
