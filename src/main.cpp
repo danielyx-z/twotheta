@@ -60,7 +60,6 @@ void loop() {
   checkMotorSafety();
 
   // 3. Telemetry
-  Serial.println("loop");
   unsigned long now = millis();
   if (now - lastSerialTime >= SERIAL_INTERVAL) {
     lastSerialTime = now;

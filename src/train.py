@@ -3,6 +3,7 @@ from stable_baselines3 import SAC
 from stable_baselines3.common.monitor import Monitor
 from stable_baselines3.common.vec_env import DummyVecEnv
 from esp_env import CartPoleESP32Env
+from torch import nn
 
 PORT = "COM8"
 BAUD = 921600
@@ -27,18 +28,18 @@ def latest_checkpoint():
 def train():
     env = DummyVecEnv([make_env])
 
-    policy_kwargs = dict(net_arch=dict(pi=[128, 64], qf=[128, 64]))
+    policy_kwargs = dict(activation_fn=nn.Tanh, net_arch=dict(pi=[64, 64], qf=[64, 64]))
 
     params = {
-        "learning_rate": 3e-4,
-        "buffer_size": 80000,
+        "learning_rate": 1e-4,
+        "buffer_size": 50000,
         "learning_starts": 5000,
         "batch_size": 256,
         "tau": 0.005,
         "gamma": 0.99,
         "ent_coef": "auto_0.1",
         "train_freq": (1, "episode"),
-        "gradient_steps": 1500,
+        "gradient_steps": -1,
         "tensorboard_log": LOG_DIR
     }
 

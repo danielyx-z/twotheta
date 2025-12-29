@@ -25,7 +25,7 @@ class CartPoleESP32Env(gym.Env):
         t1, t2, v1, v2, pos = state
         return np.array([
             math.sin(t1), math.cos(t1),
-            v1, 
+            v1 / self.SPIN_THRESHOLD, 
             pos / self.max_pos,
             dt_measured * 60
         ], dtype=np.float32)
@@ -38,15 +38,15 @@ class CartPoleESP32Env(gym.Env):
             return -30.0 
 
         error = (t1 - math.pi + math.pi) % (2 * math.pi) - math.pi
-        r_swingup = -math.cos(t1) + 1
+        r_swingup = (-math.cos(t1) + 1)/2
         
         # Smooth Gaussian for the top
-        r_precision = 2.0 * math.exp(-(error ** 2) / (2 * 0.3 ** 2))
+        r_precision = 1.0 * math.exp(-(error ** 2) / (2 * 0.5 ** 2))
 
-        r_pos = -0.01 * abs(pos / self.max_pos)
+        r_pos = -0.1 * abs(pos / self.max_pos) ** 2
 
-        uprightness = max(0, -math.cos(t1)) # Only positive when pole is above horizontal
-        r_velocity = -0.08 * uprightness * (v1 ** 2)
+        uprightness = ((-math.cos(t1) + 1) / 2) ** 2
+        r_velocity = -0.05 * uprightness * (v1 ** 2)
 
         return float(r_swingup + r_precision + r_pos + r_velocity)
 
@@ -67,7 +67,7 @@ class CartPoleESP32Env(gym.Env):
         last_move = time.time()
         stabilized = 0
         while True:
-            if time.time() - start_time > 90.0:
+            if time.time() - start_time > 60.0:
                 print("Reset Timeout! Forcing start...")
                 break
 
