@@ -16,7 +16,7 @@ STEPS_PER_SAVE = 3000
 os.makedirs(CKPT_DIR, exist_ok=True)
 
 def make_env():
-    return Monitor(CartPoleESP32Env(port=PORT, baudrate=BAUD, max_steps=1000))
+    return Monitor(CartPoleESP32Env(port=PORT, baudrate=BAUD, max_steps=1000, enable_viz=True))
 
 def latest_checkpoint():
     files = [f for f in os.listdir(CKPT_DIR) if f.endswith(".zip")]
@@ -31,15 +31,15 @@ def train():
     policy_kwargs = dict(activation_fn=nn.Tanh, net_arch=dict(pi=[64, 64], qf=[64, 64]))
 
     params = {
-        "learning_rate": 1e-4,
+        "learning_rate": 3e-4,
         "buffer_size": 50000,
-        "learning_starts": 5000,
+        "learning_starts": 3000,
         "batch_size": 256,
-        "tau": 0.005,
+        "tau": 0.01,
         "gamma": 0.99,
         "ent_coef": "auto_0.1",
         "train_freq": (1, "episode"),
-        "gradient_steps": -1,
+        "gradient_steps": 5000,
         "tensorboard_log": LOG_DIR
     }
 

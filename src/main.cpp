@@ -68,9 +68,9 @@ void loop() {
     getAngleAndVelocity(1, t1, v1);
     getAngleAndVelocity(2, t2, v2);
     float p = (float)stepper->getCurrentPosition();
+    float motor_vel = (float)stepper->getCurrentSpeedInMilliHz() / 1000.0f; 
 
-
-    uint8_t buffer[22];
+    uint8_t buffer[26]; 
     buffer[0] = STATE_HEADER[0];
     buffer[1] = STATE_HEADER[1];
     memcpy(buffer + 2, &t1, 4);
@@ -78,9 +78,10 @@ void loop() {
     memcpy(buffer + 10, &v1, 4);
     memcpy(buffer + 14, &v2, 4);
     memcpy(buffer + 18, &p, 4);
+    memcpy(buffer + 22, &motor_vel, 4); 
 
-    if (Serial.availableForWrite() >= 22) {
-      Serial.write(buffer, 22);
+    if (Serial.availableForWrite() >= 26) {
+      Serial.write(buffer, 26);
     }
   }
 }

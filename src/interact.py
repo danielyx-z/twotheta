@@ -68,7 +68,7 @@ class PendulumVisualizer:
                 self.clock.tick(FPS)
                 continue
 
-            theta1, theta2, vel1, vel2, pos = self.last_state
+            theta1, theta2, vel1, vel2, pos, motor_speed = self.last_state
             
             # Kinematics
             base_x = center_x + pos * POS_SCALE

@@ -1,13 +1,13 @@
 #include "Motor.h"
 #include <Arduino.h>
 
-const int MAX_SPEED_HZ = 100000; 
-const int ACCELERATION = 800000; 
+const int MAX_SPEED_HZ = 90000; 
+const int ACCELERATION = 700000; 
 const int ENDPOINT = 32000; // Reduced slightly for safety margin
 const int SAFETY_ZONE = 200; // Steps before endpoint to start slowing down
 const unsigned long HOLD_DURATION_MS = 1000; 
 const int LIMIT_SWITCH_PIN = 19; 
-const int CENTER_OFFSET = 48000;
+const int CENTER_OFFSET = 46000;
 
 FastAccelStepperEngine engine;
 FastAccelStepper *stepper = NULL;

@@ -47,7 +47,7 @@ class ESP32SerialController:
         while i >= 0:
             if all_data[i] == 0xAA and all_data[i+1] == 0x55:
                 try:
-                    new_state = struct.unpack('5f', all_data[i+2:i+22])
+                    new_state = struct.unpack('6f', all_data[i+2:i+26])
                     if all(math.isfinite(x) for x in new_state):
                         return new_state
                 except struct.error:
