@@ -2,7 +2,7 @@
 #include "Motor.h"
 #include "Encoders.h" 
 
-const unsigned long SERIAL_INTERVAL = 20; 
+const unsigned long SERIAL_INTERVAL = 18; 
 const uint8_t STATE_HEADER[2] = {0xAA, 0x55};
 const uint8_t CMD_HEADER[2] = {0x55, 0xAA};
 const int CMD_PACKET_SIZE = 6;
@@ -60,8 +60,8 @@ void loop() {
   checkMotorSafety();
 
   // 3. Telemetry
-  unsigned long now = millis();
-  if (now - lastSerialTime >= SERIAL_INTERVAL) {
+  unsigned long now = micros();
+  if (now - lastSerialTime >= SERIAL_INTERVAL * 1000) {
     lastSerialTime = now;
 
     float t1, v1, t2, v2;

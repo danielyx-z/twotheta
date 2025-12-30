@@ -106,7 +106,7 @@ class CartPoleESP32Env(gym.Env):
         self.esp.move(10.0) 
         self.last_step_time = time.perf_counter()
 
-        obs = self._get_obs(np.zeros(6, dtype=np.float32), 0.02)
+        obs = self._get_obs(np.zeros(6, dtype=np.float32), 0.018)
         
         if self.enable_viz:
             self._update_viz_data(obs, np.zeros(6, dtype=np.float32), 0.0, 0.0, False, False, 0.02)
@@ -159,7 +159,7 @@ class CartPoleESP32Env(gym.Env):
         self.last_step_time = time.perf_counter()
         self.esp.move(float(current_action))
 
-        self.esp.serial.reset_input_buffer()
+        #self.esp.serial.reset_input_buffer()
         raw_state = self.esp.receive_state()
         while raw_state is None:
             raw_state = self.esp.receive_state()
@@ -190,7 +190,7 @@ class CartPoleESP32Env(gym.Env):
         actual_dt = current_time - self.last_step_time
         obs = self._get_obs(raw_state, actual_dt)
         self.last_step_time = current_time
-        
+
         # Update visualization data
         if self.enable_viz:
             self._update_viz_data(obs, raw_state, current_action, reward, terminated, truncated, actual_dt)
