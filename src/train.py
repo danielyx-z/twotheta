@@ -9,8 +9,7 @@ from stable_baselines3.common.monitor import Monitor
 from stable_baselines3.common.vec_env import DummyVecEnv
 from esp_env import CartPoleESP32Env
 
-# --- Configuration ---
-PORT = "COM8"
+PORT = "/dev/ttyUSB0"
 BAUD = 921600
 MODEL_NAME = "single_pendulum"
 LOG_DIR = "./tensorboard_logs/"

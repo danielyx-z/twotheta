@@ -73,7 +73,7 @@ class CartPoleESP32Env(gym.Env):
         return np.array([
             math.sin(t1), 
             math.cos(t1),
-            v1 / self.SPIN_THRESHOLD, 
+            v1,
             pos / self.max_pos,
             motor_vel / self.max_motor_speed,
             dt_measured * 60
@@ -88,15 +88,21 @@ class CartPoleESP32Env(gym.Env):
         error = (t1 - math.pi + math.pi) % (2 * math.pi) - math.pi
         uprightness = ((-math.cos(t1) + 1) / 2) ** 2
 
-        r_base = (-math.cos(t1) + 1) / 2
+        r_base = ((-math.cos(t1) + 1) / 2) ** 2
 
         r_pos = -0.1 * abs(pos / self.max_pos) ** 2
         
+        sigma_angle = 0.15 
+        sigma_vel = 0.5
+        r_stability = math.exp(-(error**2) / (2 * sigma_angle**2)) * \
+                    math.exp(-(v1**2) / (2 * sigma_vel**2))
+        
         r_velocity = -0.02 * uprightness * (v1 ** 2)
         
+        action = float(np.asarray(action).item())
         r_action = -0.01 * (action ** 2)
 
-        return float(r_base + r_pos + r_velocity + r_action)
+        return float(r_base + r_pos + r_velocity + r_action + r_stability)
 
     def reset(self, seed=None, options=None):
         super().reset(seed=seed)
@@ -159,7 +165,7 @@ class CartPoleESP32Env(gym.Env):
         self.last_step_time = time.perf_counter()
         self.esp.move(float(current_action))
 
-        #self.esp.serial.reset_input_buffer()
+        self.esp.serial.reset_input_buffer()
         raw_state = self.esp.receive_state()
         while raw_state is None:
             raw_state = self.esp.receive_state()
@@ -191,6 +197,7 @@ class CartPoleESP32Env(gym.Env):
         obs = self._get_obs(raw_state, actual_dt)
         self.last_step_time = current_time
 
+        print(actual_dt)
         # Update visualization data
         if self.enable_viz:
             self._update_viz_data(obs, raw_state, current_action, reward, terminated, truncated, actual_dt)

@@ -4,4 +4,14 @@ pip freeze > requirements.txt
 pip install -r requirements.txt
 
 
+
+
 tensorboard --logdir ./tensorboard_logs/
+
+
+
+
+source .venv/bin/activate
+
+
+sudo chmod 666 /dev/ttyUSB0
