@@ -91,7 +91,7 @@ class CartPoleESP32Env(gym.Env):
         r_base = ((-math.cos(t1) + 1) / 2) ** 2
 
         r_pos = -0.1 * abs(pos / self.max_pos) ** 2
-        
+
         sigma_angle = 0.15 
         sigma_vel = 0.5
         r_stability = math.exp(-(error**2) / (2 * sigma_angle**2)) * \
@@ -197,7 +197,7 @@ class CartPoleESP32Env(gym.Env):
         obs = self._get_obs(raw_state, actual_dt)
         self.last_step_time = current_time
 
-        print(actual_dt)
+        #print(actual_dt)
         # Update visualization data
         if self.enable_viz:
             self._update_viz_data(obs, raw_state, current_action, reward, terminated, truncated, actual_dt)

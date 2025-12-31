@@ -1,5 +1,4 @@
 import os
-import torch  # Kept only if needed for other parts of your project
 from sbx import SAC
 from stable_baselines3.common.monitor import Monitor
 from stable_baselines3.common.vec_env import DummyVecEnv
@@ -34,19 +33,19 @@ def train():
 
     # SBX uses a slightly different architecture definition
     policy_kwargs = dict(
-        net_arch=[128, 64] # SBX defaults to ReLU; pi and qf share this arch usually
+        net_arch=[128, 128] # SBX defaults to ReLU; pi and qf share this arch usually
     )
 
     params = {
         "learning_rate": 3e-4,
         "buffer_size": 80000, 
-        "learning_starts": 3000,
+        "learning_starts": 5000,
         "batch_size": 256,
         "tau": 0.005,
         "gamma": 0.99,
         "ent_coef": "auto", # SBX 'auto' works slightly differently but usually better
         "train_freq": (1, "step"),
-        "gradient_steps": 1,   
+        "gradient_steps": 5,   
         "tensorboard_log": LOG_DIR
     }
 

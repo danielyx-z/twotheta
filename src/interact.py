@@ -5,7 +5,7 @@ import pygame
 from esp_controller import ESP32SerialController
 
 # Configuration
-SERIAL_PORT = "COM8" 
+SERIAL_PORT = "/dev/ttyUSB0" 
 BAUD_RATE = 921600
 FPS = 120
 L1 = 120  
