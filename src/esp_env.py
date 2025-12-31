@@ -131,7 +131,7 @@ class CartPoleESP32Env(gym.Env):
             u_center = 0.01 * (pos / self.max_pos)
             action = -np.clip(u_energy + u_center, -0.8, 0.8)
 
-            if abs(v1) < 0.2 and math.cos(t1) > 0.98:
+            if abs(v1) < 0.3 and math.cos(t1) > 0.97:
                 stabilized += 1
                 if stabilized > 30:  
                     break

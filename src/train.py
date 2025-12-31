@@ -15,13 +15,13 @@ BAUD = 921600
 MODEL_NAME = "single_pendulum"
 LOG_DIR = "./tensorboard_logs/"
 CKPT_DIR = "./checkpoints"
-TOTAL_TIMESTEPS = 500000
+TOTAL_TIMESTEPS = 600000
 STEPS_PER_SAVE = 3000
 
 os.makedirs(CKPT_DIR, exist_ok=True)
 
 def make_env():
-    return Monitor(CartPoleESP32Env(port=PORT, baudrate=BAUD, max_steps=1000, enable_viz=True))
+    return Monitor(CartPoleESP32Env(port=PORT, baudrate=BAUD, max_steps=2000, enable_viz=False))
 
 def latest_checkpoint():
     if not os.path.exists(CKPT_DIR):
@@ -82,15 +82,15 @@ def train():
     )
 
     params = {
-        "learning_rate": 3e-4,
-        "buffer_size": 80000,  # Increased size
+        "learning_rate": 2e-4,
+        "buffer_size": 80000, 
         "learning_starts": 1000,
         "batch_size": 256,
         "tau": 0.005,
         "gamma": 0.99,
         "ent_coef": "auto_0.1",
-        "train_freq": (1, "episode"), # Switched to per-step for 5x speedup
-        "gradient_steps": 3000,      # 10 updates per 1 physical step
+        "train_freq": (1, "episode"),
+        "gradient_steps": 2000,   
         "tensorboard_log": LOG_DIR
     }
 
@@ -109,7 +109,7 @@ def train():
         migrate_buffer(model, replay_path)
         
         start_steps = int(ckpt.split("_")[-1].split(".")[0])
-        
+
     else:
         print("Starting from scratch")
         model = SAC(
@@ -137,9 +137,7 @@ def train():
             print(f"Saved: {path} | Buffer: {model.replay_buffer.size()}/{model.replay_buffer.buffer_size}")
 
     except KeyboardInterrupt:
-        print("\nTraining interrupted by user. Saving current state...")
-        final_path = os.path.join(CKPT_DIR, f"{MODEL_NAME}_interrupted.zip")
-        model.save(final_path)
+        pass
     finally:
         env.close()
 
