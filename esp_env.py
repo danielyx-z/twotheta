@@ -24,10 +24,6 @@ class CartPoleESP32Env(gym.Env):
         self.last_step_time = time.perf_counter()
         self.first_step_of_episode = True
         
-        # --- Physical State Tracking ---
-        self.needs_physical_calibration = True 
-        self.steps_in_current_episode = 0
-        
         # Visualization setup
         self.enable_viz = enable_viz
         self.shm = None
@@ -72,22 +68,22 @@ class CartPoleESP32Env(gym.Env):
     def _calculate_reward(self, state, action, terminated):
         t1, v1, pos = state[0], state[2], state[4]
         if terminated:
-            return -3.0 
+            return -10.0
 
         error = (t1 - math.pi + math.pi) % (2 * math.pi) - math.pi
         uprightness = ((-math.cos(t1) + 1) / 2) ** 2
+
         r_base = (-math.cos(t1) + 1) / 2
-        r_pos = -0.1 * abs(pos / self.max_pos) ** 2
 
         sigma_angle = 0.15 
         sigma_vel = 0.5
-        r_stability = 0.5 * math.exp(-(error**2) / (2 * sigma_angle**2)) * \
-                    math.exp(-(v1**2) / (2 * sigma_vel**2))
+        r_stability = 0.5 * math.exp(-(error**2) / (2 * sigma_angle**2)) * math.exp(-(v1**2) / (2 * sigma_vel**2))
         
         r_velocity = -0.02 * uprightness * (v1 ** 2)
-        r_action = -0.001 * (float(np.asarray(action).item()) ** 2)
+        r_action = -0.01 * (float(np.asarray(action).item()) ** 2)
+        r_pos = -0.1 * abs(pos / self.max_pos) ** 2
 
-        return 0.1 * float(r_base + r_pos + r_velocity + r_action + r_stability)
+        return float(r_base + r_pos + r_velocity + r_action + r_stability)
 
     def reset(self, seed=None, options=None):
         super().reset(seed=seed)
@@ -98,7 +94,6 @@ class CartPoleESP32Env(gym.Env):
         self.esp.serial.reset_input_buffer()
 
         self.current_step = 0
-        self.steps_in_current_episode = 0
         self.first_step_of_episode = True
         
         raw_state = self.esp.receive_state()
@@ -148,8 +143,8 @@ class CartPoleESP32Env(gym.Env):
         self.esp.move(0.0) 
 
     def step(self, action):
-        self.steps_in_current_episode += 1
         current_action = np.clip(action[0], -1.0, 1.0)
+        self.current_step += 1
 
         if self.first_step_of_episode:
             self.esp.serial.reset_input_buffer()
@@ -166,7 +161,7 @@ class CartPoleESP32Env(gym.Env):
         while raw_state is None:
             raw_state = self.esp.receive_state()
 
-        self.current_step += 1
+        
         angular_vel = abs(raw_state[2]) 
         if angular_vel > self.SPIN_THRESHOLD:
             self.overspeed_counter += 1
