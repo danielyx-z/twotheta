@@ -22,6 +22,25 @@ class ESP32SerialController:
             print(f"Error: Could not open serial port {port}: {e}")
             sys.exit(1)
 
+    def full_hardware_reset(self):
+        """Triggers the ESP32 reset pin via DTR and RTS signals."""
+        if self.serial and self.serial.is_open:
+            print("Triggering hardware reset...")
+            # Standard sequence to reset ESP32 via serial lines
+            self.serial.setDTR(False)
+            self.serial.setRTS(False)
+            time.sleep(0.1)
+            self.serial.setDTR(True)
+            self.serial.setRTS(True)
+            
+            # Give it time to boot up and run setup()
+            time.sleep(2.0) 
+            
+            # Flush any garbage data sent during the boot sequence
+            self.serial.reset_input_buffer()
+            self.serial.reset_output_buffer()
+            print("Hardware reset complete.")
+
     def move(self, action):
         """Sends a float action command to the ESP32."""
         if self.serial and self.serial.is_open:
@@ -34,6 +53,11 @@ class ESP32SerialController:
             return None
         
         buffer_size = self.serial.in_waiting
+
+        if buffer_size > 2048:
+            self.serial.reset_input_buffer()
+            return None
+        
         if buffer_size < self.STATE_PACKET_SIZE:
             return None
         
