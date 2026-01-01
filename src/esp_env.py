@@ -83,11 +83,16 @@ class CartPoleESP32Env(gym.Env):
         t1, v1, pos = state[0], state[2], state[4]
 
         if terminated:
-            return -30.0 
+            return -3.0 
 
         error = (t1 - math.pi + math.pi) % (2 * math.pi) - math.pi
         uprightness = ((-math.cos(t1) + 1) / 2) ** 2
-
+        
+        sigma_angle = 0.15 
+        sigma_vel = 0.5
+        r_stability = math.exp(-(error**2) / (2 * sigma_angle**2)) * \
+                    math.exp(-(v1**2) / (2 * sigma_vel**2))
+        
         r_base = (-math.cos(t1) + 1) / 2
 
         r_pos = -0.1 * abs(pos / self.max_pos) ** 2
@@ -96,14 +101,16 @@ class CartPoleESP32Env(gym.Env):
         
         r_action = -0.01 * (action ** 2)
 
-        return float(r_base + r_pos + r_velocity + r_action)
+        return float(0.1 * (r_base + r_pos + r_velocity + r_action + r_stability))
 
     def reset(self, seed=None, options=None):
         super().reset(seed=seed)
         self.current_step = 0
         self.esp.serial.reset_output_buffer()
         self.first_step_of_episode = True
+        self.active_damp()
         self.esp.move(10.0) 
+
         self.last_step_time = time.perf_counter()
 
         obs = self._get_obs(np.zeros(6, dtype=np.float32), 0.018)
@@ -182,7 +189,6 @@ class CartPoleESP32Env(gym.Env):
             if is_spinning:
                 print("Terminating episode due to overspeed.")
             
-            self.active_damp()
 
         reward = self._calculate_reward(raw_state, current_action, terminated)
         
@@ -191,6 +197,7 @@ class CartPoleESP32Env(gym.Env):
         obs = self._get_obs(raw_state, actual_dt)
         self.last_step_time = current_time
 
+        #print(actual_dt)
         # Update visualization data
         if self.enable_viz:
             self._update_viz_data(obs, raw_state, current_action, reward, terminated, truncated, actual_dt)

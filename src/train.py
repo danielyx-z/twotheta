@@ -5,6 +5,7 @@ import math
 import torch
 from torch import nn
 from stable_baselines3 import SAC
+from stable_baselines3 import PPO
 from stable_baselines3.common.monitor import Monitor
 from stable_baselines3.common.vec_env import DummyVecEnv
 from esp_env import CartPoleESP32Env
@@ -15,8 +16,8 @@ BAUD = 921600
 MODEL_NAME = "single_pendulum"
 LOG_DIR = "./tensorboard_logs/"
 CKPT_DIR = "./checkpoints"
-TOTAL_TIMESTEPS = 600000
-STEPS_PER_SAVE = 3000
+TOTAL_TIMESTEPS = 500000
+STEPS_PER_SAVE = 4000
 
 os.makedirs(CKPT_DIR, exist_ok=True)
 
@@ -84,13 +85,13 @@ def train():
     params = {
         "learning_rate": 2e-4,
         "buffer_size": 80000, 
-        "learning_starts": 1000,
+        "learning_starts": 2000,
         "batch_size": 256,
         "tau": 0.005,
         "gamma": 0.99,
         "ent_coef": "auto_0.1",
-        "train_freq": (1, "episode"),
-        "gradient_steps": 2000,   
+        "train_freq": (1, "step"),
+        "gradient_steps": 5,   
         "tensorboard_log": LOG_DIR
     }
 
