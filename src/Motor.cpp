@@ -7,7 +7,7 @@ const int ENDPOINT = 32000; // Reduced slightly for safety margin
 const int SAFETY_ZONE = 200; // Steps before endpoint to start slowing down
 const unsigned long HOLD_DURATION_MS = 1000; 
 const int LIMIT_SWITCH_PIN = 19; 
-const int CENTER_OFFSET = 46000;
+const int CENTER_OFFSET = 45000;
 
 FastAccelStepperEngine engine;
 FastAccelStepper *stepper = NULL;
@@ -45,7 +45,7 @@ void resetMotorPosition() {
     isEnabled = true;
     lastMoveTime = millis();
 
-    stepper->setSpeedInHz(12000); 
+    stepper->setSpeedInHz(16000); 
     stepper->setAcceleration(20000);
     stepper->runForward();
 

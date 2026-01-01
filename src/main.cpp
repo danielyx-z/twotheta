@@ -14,8 +14,8 @@ int serialBufferIndex = 0;
 void setup() {
   Serial.begin(921600);
   delay(500);
-  pinMode(24, OUTPUT); // Use 32 instead of 35
-  pinMode(25, OUTPUT); // Use 33 instead of 24
+  pinMode(24, OUTPUT);
+  pinMode(25, OUTPUT);
   digitalWrite(24, HIGH);
   digitalWrite(25, HIGH);
   setupMotor();
@@ -24,7 +24,6 @@ void setup() {
 }
 
 void loop() {
-  // 1. Process Serial
   while (Serial.available()) {
     uint8_t inByte = Serial.read();
 
@@ -56,10 +55,9 @@ void loop() {
     }
   }
 
-  // 2. Safety
+
   checkMotorSafety();
 
-  // 3. Telemetry
   unsigned long now = micros();
   if (now - lastSerialTime >= SERIAL_INTERVAL * 1000) {
     lastSerialTime = now;

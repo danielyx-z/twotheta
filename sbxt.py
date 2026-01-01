@@ -22,7 +22,6 @@ RESET_COUNT = 0
 os.makedirs(CKPT_DIR, exist_ok=True)
 
 def make_env():
-    # Wrap the hardware env with Monitor for TensorBoard logging
     return Monitor(CartPoleESP32Env(port=PORT, baudrate=BAUD, max_steps=2000, enable_viz=False))
 
 def latest_checkpoint():
@@ -32,11 +31,9 @@ def latest_checkpoint():
     if not files:
         return None
     
-    # Bulletproof numeric sort to avoid ValueError: 'steps'
     valid_files = []
     for f in files:
         try:
-            # Extract only the numeric part before .zip
             num_part = "".join(filter(str.isdigit, f.split("_")[-1]))
             if num_part:
                 valid_files.append((int(num_part), f))
@@ -53,24 +50,23 @@ def train():
     global RESET_COUNT
     env = DummyVecEnv([make_env])
 
-    # DroQ Configuration: Dropout + Layer Norm
     policy_kwargs = dict(
         net_arch=[128, 128],
         dropout_rate=0.01,    # Standard DroQ regularization
         layer_norm=True       # Required to stabilize high UTD
     )
 
-    # UTD 20 Configuration
+
     params = {
-        "learning_rate": 1e-4,
+        "learning_rate": 3e-4,
         "buffer_size": 100000, 
         "learning_starts": 1000, 
         "batch_size": 256,
         "tau": 0.005,
         "gamma": 0.99,
         "ent_coef": "auto",
-        "train_freq": (1, "step"), # Check every 1 step
-        "gradient_steps": 20,      # DO 20 UPDATES (UTD=20)
+        "train_freq": (1, "step"),
+        "gradient_steps": 20,
         "tensorboard_log": LOG_DIR
     }
 
@@ -86,15 +82,14 @@ def train():
     if ckpt:
         print(f"Loading Checkpoint: {ckpt}")
         model = SAC.load(ckpt, env=env)
-        # Ensure UTD is preserved after loading
         model.gradient_steps = 20
-        # Extract starting steps from filename
+
         try:
             start_steps = int("".join(filter(str.isdigit, ckpt.split("_")[-1])))
         except:
             start_steps = 0
     else:
-        print("Starting DroQ (SAC + UTD 20) from scratch")
+        print("Starting DroQ from scratch")
         model = SAC(
             "MlpPolicy",
             env,

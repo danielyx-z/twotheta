@@ -14,32 +14,13 @@ class ESP32SerialController:
         self.serial = None
         try:
             self.serial = serial.Serial(port, baudrate, timeout=0)
-            time.sleep(0.5)  # Allow ESP32 to reset
+            time.sleep(0.5)
             self.serial.reset_input_buffer()
             self.serial.reset_output_buffer()
             print("ESP32 connection initialized.")
         except serial.SerialException as e:
             print(f"Error: Could not open serial port {port}: {e}")
             sys.exit(1)
-
-    def full_hardware_reset(self):
-        """Triggers the ESP32 reset pin via DTR and RTS signals."""
-        if self.serial and self.serial.is_open:
-            print("Triggering hardware reset...")
-            # Standard sequence to reset ESP32 via serial lines
-            self.serial.setDTR(False)
-            self.serial.setRTS(False)
-            time.sleep(0.1)
-            self.serial.setDTR(True)
-            self.serial.setRTS(True)
-            
-            # Give it time to boot up and run setup()
-            time.sleep(2.0) 
-            
-            # Flush any garbage data sent during the boot sequence
-            self.serial.reset_input_buffer()
-            self.serial.reset_output_buffer()
-            print("Hardware reset complete.")
 
     def move(self, action):
         """Sends a float action command to the ESP32."""
