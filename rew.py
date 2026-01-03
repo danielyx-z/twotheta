@@ -19,7 +19,7 @@ def get_env_reward(t1, v1):
     terminated = False
     
     # Call the protected method from your class
-    return env._calculate_reward(dummy_state, dummy_action, terminated)
+    return env._calculate_reward(dummy_state, dummy_action, dummy_action, terminated)
 
 # 2. Create meshgrid for Angle and Velocity
 angle_range = np.linspace(0, 2*np.pi, 200)
