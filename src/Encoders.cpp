@@ -50,6 +50,17 @@ void setupEncoders() {
   }
 }
 
+void recalibrateEncoders() {
+  // Read current raw positions to set as the new 'hanging down' offsets
+  tcaSelect(ENCODER1_CHANNEL);
+  offset1 = encoder1.rawAngle();
+  
+  tcaSelect(ENCODER2_CHANNEL);
+  offset2 = encoder2.rawAngle();
+  
+  Serial.println("Offsets recalibrated to current position.");
+}
+
 void getAngleAndVelocity(int joint, float &angle, float &velocity) {
   uint16_t raw = 0;
 

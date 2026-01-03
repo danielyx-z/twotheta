@@ -10,13 +10,14 @@ class CartPoleESP32Env(gym.Env):
         super().__init__()
         self.esp = ESP32SerialController(port, baudrate)
 
+        # Action: -1.0 to 1.0 (Frequency)
         self.action_space = spaces.Box(low=-1.0, high=1.0, shape=(1,), dtype=np.float32)
         
-        # [sin(t1), cos(t1), error, v1, pos, motor_vel, dt, prev_action]
+        # [sin(t), cos(t), error_from_top, v, pos, motor_v, dt, prev_act]
         self.observation_space = spaces.Box(low=-np.inf, high=np.inf, shape=(8,), dtype=np.float32)
         
         self.max_pos = 31900.0  
-        self.max_motor_speed = 90000.0
+        self.max_motor_speed = 75000.0
         self.max_episode_steps = max_steps
         self.current_step = 0
         self.overspeed_counter = 0
@@ -25,20 +26,23 @@ class CartPoleESP32Env(gym.Env):
         self.last_step_time = time.perf_counter()
         self.first_step_of_episode = True
         
-        # Track previous action for observation and reward calculation
         self.prev_action = 0.0
 
     def _get_obs(self, state, dt_measured, prev_action):
         t1, t2, v1, v2, pos, motor_vel = state
+        
+        # We assume C++ has calibrated so Bottom is ~0 and Top is ~PI
+        # Error calculation: Distance from PI
+        error_from_top = math.atan2(math.sin(t1 - math.pi), math.cos(t1 - math.pi))
         return np.array([
-            math.sin(t1), 
-            math.cos(t1),
-            ((t1 + math.pi) % (2 * math.pi) - math.pi) / math.pi,
+            math.sin(t1),       
+            math.cos(t1),      
+            error_from_top / math.pi, # Normalized error
             v1 / self.SPIN_THRESHOLD,
             pos / self.max_pos,
             motor_vel / self.max_motor_speed,
             dt_measured * 60,
-            float(prev_action) # Add previous action to observation
+            float(prev_action)
         ], dtype=np.float32)
 
     def _calculate_reward(self, state, action, prev_action, terminated):
@@ -47,27 +51,31 @@ class CartPoleESP32Env(gym.Env):
         if terminated:
             return -20.0 
 
-        # 1. Uprightness Reward
-        error = (t1 + math.pi) % (2 * math.pi) - math.pi
-        r_base = (math.cos(error) + 1) / 2
+        # Error relative to PI (180 deg)
+        # Using (t1 - pi) logic assuming t1 comes in around 3.14 at top
+        error = math.atan2(math.sin(t1 - math.pi), math.cos(t1 - math.pi))
         
-        sigma_angle = 0.1 
-        sigma_vel = 0.05
-        r_stability = math.exp(-(error**2) / (2 * sigma_angle**2)) * math.exp(-(v1**2) / (2 * sigma_vel**2))
+        # 1. Base Angle Reward (Wide tolerance)
+        # We accept a wider range as "good" so it doesn't fight the physical balance point
+        r_base = (1 - math.cos(t1) ) / 2
+        
+        # 2. Stability Reward (The "King" Reward)
+        # We reward High Uprightness AND Low Velocity heavily.
+        # If angle is 178 deg but velocity is 0, this will still be very high.
+        sigma_angle = 0.15 # Widened slightly to accept 178-182 deg
+        sigma_vel = 0.05   # Strict velocity requirement
+        
+        r_stability = math.exp(-(error**2) / (2 * sigma_angle**2)) * \
+                      math.exp(-(v1**2) / (2 * sigma_vel**2))
 
-        # 2. Velocity Penalty (penalize high velocity when upright)
+        # 3. Penalties
         uprightness = r_base ** 2
         r_velocity = -0.05 * uprightness * (v1 ** 2)
-
-        # 3. Energy/Magnitude Penalty
+        
         current_action = float(np.asarray(action).item())
         r_action = -0.01 * abs(current_action)
-
-        # 4. Position Penalty (Keep near center)
-        r_pos = -0.2 * (abs(pos) / self.max_pos) ** 2
+        r_pos = -0.1 * (abs(pos) / self.max_pos) ** 2
         
-        # 5. Delta Action Penalty (New: Smoothness)
-        # Penalize large changes in action to prevent high frequency oscillation
         delta_action = current_action - prev_action
         r_delta = -0.5 * (delta_action ** 2)
 
@@ -77,23 +85,24 @@ class CartPoleESP32Env(gym.Env):
         super().reset(seed=seed)
 
         self.esp.serial.reset_output_buffer()
-        self.active_damp()
+        self.active_damp() # Your guaranteed logic
         self.esp.move(10.0) 
-        self.esp.serial.reset_input_buffer()
 
+        self.esp.serial.reset_input_buffer()
         self.current_step = 0
         self.first_step_of_episode = True
-        self.prev_action = 0.0 # Reset previous action
+        self.prev_action = 0.0 
         
         raw_state = self.esp.receive_state()
         while raw_state is None:
             raw_state = self.esp.receive_state()
             
-        # Initial observation has prev_action = 0.0
+        # Standard observation (Assuming C++ handled offset)
         obs = self._get_obs(raw_state, 0.018, 0.0)
-        self.last_step_time = time.perf_counter()
+        
+        #print(f"Start Angle: {math.degrees(raw_state[0]):.2f}")
 
-        time.sleep(0.5)
+        self.last_step_time = time.perf_counter()
         return obs, {}
 
     def active_damp(self):
@@ -113,9 +122,9 @@ class CartPoleESP32Env(gym.Env):
             t1, v1, pos = state[0], state[2], state[4]
             u_energy = 0.2 * v1 * math.cos(t1)
             u_center = 0.01 * (pos / self.max_pos)
-            action = np.clip(u_energy + u_center, -0.8, 0.8)
+            action = -np.clip(u_energy + u_center, -0.8, 0.8)
 
-            if abs(v1) < 0.2 and math.cos(t1) < 0.97:
+            if abs(v1) < 0.2 and math.cos(t1) > 0.97:
                 stabilized += 1
                 if stabilized > 30:  
                     break
@@ -131,7 +140,9 @@ class CartPoleESP32Env(gym.Env):
 
     def step(self, action):
         raw_action = np.clip(action[0], -1.0, 1.0)
+        
         current_action = np.sign(raw_action) * (abs(raw_action)**1.5)
+        
         self.current_step += 1
 
         if self.first_step_of_episode:
@@ -141,43 +152,36 @@ class CartPoleESP32Env(gym.Env):
                 raw_state = self.esp.receive_state()
             self.first_step_of_episode = False
 
-        self.last_step_time = time.perf_counter()
+            self.last_step_time = time.perf_counter()
+
         self.esp.move(float(current_action))
 
-        self.esp.serial.reset_input_buffer()
         raw_state = self.esp.receive_state()
         while raw_state is None:
             raw_state = self.esp.receive_state()
 
-        # Termination logic
-        angular_vel = abs(raw_state[2]) 
-        if angular_vel > self.SPIN_THRESHOLD:
-            self.overspeed_counter += 1
-        else:
-            self.overspeed_counter = 0 
 
         hit_wall = abs(raw_state[4]) > self.max_pos
+        if abs(raw_state[2]) > self.SPIN_THRESHOLD:
+            self.overspeed_counter += 1
+        else:
+            self.overspeed_counter = 0
+
         is_spinning = self.overspeed_counter > self.MAX_OVERSPEED_FRAMES
         
         terminated = hit_wall or is_spinning
         truncated = self.current_step >= self.max_episode_steps
         
         if terminated and is_spinning:
-            print("Terminating episode due to overspeed.")
+            print("Terminating due to spin.")
 
-        # Calculate reward
-        reward = self._calculate_reward(raw_state, current_action, self.prev_action, terminated)
+        reward = self._calculate_reward(raw_state, raw_action, self.prev_action, terminated)
         
         current_time = time.perf_counter()
         actual_dt = current_time - self.last_step_time
-        
         #print(actual_dt)
-        # Update prev_action for the *next* step's calculation
-        # The observation returned here is for S_{t+1}, so the "previous action" 
-        # relative to S_{t+1} is the current_action we just took.
-        obs = self._get_obs(raw_state, actual_dt, current_action)
-        self.prev_action = current_action
-        
+        obs = self._get_obs(raw_state, actual_dt, raw_action)
+        self.prev_action = raw_action # Note: storing RAW action for history
         self.last_step_time = current_time
 
         return obs, reward, terminated, truncated, {}
@@ -187,10 +191,7 @@ class CartPoleESP32Env(gym.Env):
         self.esp.close()
 
 if __name__ == "__main__":
-    # Test execution
     test = CartPoleESP32Env()
-    print("swing it")
-    time.sleep(2)
     test.active_damp()
     print("dampened")
     test.close()

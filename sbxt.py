@@ -57,7 +57,7 @@ def train():
     env = DummyVecEnv([make_env])
 
     policy_kwargs = dict(
-        net_arch=[128, 64],
+        net_arch=[256, 128],
         dropout_rate=0.01,
         layer_norm=True
     )
@@ -65,13 +65,13 @@ def train():
     params = {
         "learning_rate": 3e-4,
         "buffer_size": 100000, 
-        "learning_starts": 1000, 
+        "learning_starts": 2000, 
         "batch_size": 512,
         "tau": 0.005,
         "gamma": 0.99,
         "ent_coef": "auto",
         "train_freq": (1, "step"),
-        "gradient_steps": 20,
+        "gradient_steps": 25,
         "tensorboard_log": LOG_DIR
     }
 
