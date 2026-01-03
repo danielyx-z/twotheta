@@ -45,10 +45,10 @@ class PendulumVisualizer:
                     self.running = False
                 elif ev.type == pygame.KEYDOWN:
                     if ev.key == pygame.K_q: self.running = False
-                    elif ev.key == pygame.K_LEFT: self.esp.move(-1.0)
+                    elif ev.key == pygame.K_LEFT: self.esp.move(-0.01)
                     elif ev.key == pygame.K_RIGHT: self.esp.move(1.0)
                     elif ev.key == pygame.K_SPACE: self.esp.move(0.0)
-                    elif ev.key == pygame.K_h: self.esp.move(10);
+                    elif ev.key == pygame.K_h: self.esp.move(10)
             # 2. Data Acquisition
             latest_state = self.esp.receive_state()
             buffer_backlog = self.esp.get_buffer_size()

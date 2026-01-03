@@ -1,5 +1,5 @@
 import os
-import time
+import numpy as np
 from sbx import TQC
 from stable_baselines3.common.monitor import Monitor
 from stable_baselines3.common.vec_env import DummyVecEnv
@@ -12,13 +12,13 @@ BAUD = 921600
 MODEL_NAME = "tqc_pendulum_sbx"
 LOG_DIR = "./tensorboard_logs/"
 CKPT_DIR = "./checkpoints"
-TOTAL_TIMESTEPS = 150000
+TOTAL_TIMESTEPS = 300000
 STEPS_PER_SAVE = 6000
 
 os.makedirs(CKPT_DIR, exist_ok=True)
 
 def make_env():
-    return Monitor(CartPoleESP32Env(port=PORT, baudrate=BAUD, max_steps=3000))
+    return Monitor(CartPoleESP32Env(port=PORT, baudrate=BAUD, max_steps=2000))
 
 def latest_checkpoint():
     if not os.path.exists(CKPT_DIR):
@@ -55,13 +55,13 @@ def train():
     params = {
         "learning_rate": 3e-4,
         "buffer_size": 100000, 
-        "learning_starts": 2000, 
+        "learning_starts": 3000, 
         "batch_size": 512, 
         "tau": 0.001,
         "gamma": 0.99,
         "ent_coef": "auto",
         "train_freq": (1, "step"),
-        "gradient_steps": 25,
+        "gradient_steps": 20,
         "top_quantiles_to_drop_per_net": 2,
         "tensorboard_log": LOG_DIR
     }
@@ -78,6 +78,9 @@ def train():
     if ckpt_path:
         print(f"--- LOADING TQC CHECKPOINT: {ckpt_path} ---")
         model = TQC.load(ckpt_path, env=env, tensorboard_log=LOG_DIR, custom_objects=params)
+        target_ent_coef = 0.1
+        model.log_ent_coef = np.log(target_ent_coef).astype(np.float32)
+
         replay_name = f"{MODEL_NAME}_replay_buffer_{start_steps}_steps.pkl"
         replay_path = os.path.join(CKPT_DIR, replay_name)
         if os.path.exists(replay_path):
@@ -95,12 +98,15 @@ def train():
         start_steps = 0
 
     try:
-        print(f"Begin training.")
-        model.learn(
-            total_timesteps=TOTAL_TIMESTEPS, 
-            callback=checkpoint_callback,
-            reset_num_timesteps=False 
-        )
+        
+        if TOTAL_TIMESTEPS - start_steps < 0:
+            print("Invalid total train step count.")
+        else:
+            model.learn(
+                total_timesteps=TOTAL_TIMESTEPS - start_steps, 
+                callback=checkpoint_callback,
+                reset_num_timesteps=False 
+            )
     except KeyboardInterrupt:
         print("Training interrupted.")
     finally:
