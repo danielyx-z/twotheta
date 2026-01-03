@@ -12,7 +12,7 @@ BAUD = 921600
 MODEL_NAME = "tqc_pendulum_sbx"
 LOG_DIR = "./tensorboard_logs/"
 CKPT_DIR = "./checkpoints"
-TOTAL_TIMESTEPS = 100000
+TOTAL_TIMESTEPS = 150000
 STEPS_PER_SAVE = 6000
 
 os.makedirs(CKPT_DIR, exist_ok=True)
