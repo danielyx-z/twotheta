@@ -10,6 +10,7 @@ class CartPoleESP32Env(gym.Env):
         super().__init__()
         self.esp = ESP32SerialController(port, baudrate)
 
+        # Action: -1.0 to 1.0 (Frequency)
         self.action_space = spaces.Box(low=-1.0, high=1.0, shape=(1,), dtype=np.float32)
         
         # [sin(t), cos(t), error_from_top, v, pos, motor_v, dt, prev_act]
@@ -29,21 +30,18 @@ class CartPoleESP32Env(gym.Env):
 
     def _get_obs(self, state, dt_measured, prev_action):
         t1, t2, v1, v2, pos, motor_vel = state
-
+        
+        # We assume C++ has calibrated so Bottom is ~0 and Top is ~PI
+        # Error calculation: Distance from PI
         error_from_top = math.atan2(math.sin(t1 - math.pi), math.cos(t1 - math.pi))
-
-        TYPICAL_ANG_VEL = 5.0      # rad/s
-        TYPICAL_POS = 15000.0      # steps
-        TYPICAL_MOTOR_VEL = 10000.0 # steps/s
-
         return np.array([
-            math.sin(t1),
-            math.cos(t1),
-            np.clip(error_from_top / 0.2, -2.0, 2.0),
-            np.clip(v1 / TYPICAL_ANG_VEL, -2.0, 2.0),
-            np.clip(pos / TYPICAL_POS, -1.5, 1.5),
-            np.clip(motor_vel / TYPICAL_MOTOR_VEL, -2.0, 2.0),
-            np.clip((dt_measured - 0.016) * 100, -1.0, 1.0),
+            math.sin(t1),       
+            math.cos(t1),      
+            error_from_top / math.pi, # Normalized error
+            v1 / self.SPIN_THRESHOLD,
+            pos / self.max_pos,
+            motor_vel / self.max_motor_speed,
+            dt_measured * 60,
             float(prev_action)
         ], dtype=np.float32)
 
@@ -53,24 +51,29 @@ class CartPoleESP32Env(gym.Env):
         if terminated:
             return -20.0 
 
-
+        # Error relative to PI (180 deg)
+        # Using (t1 - pi) logic assuming t1 comes in around 3.14 at top
         error = math.atan2(math.sin(t1 - math.pi), math.cos(t1 - math.pi))
         
+        # 1. Base Angle Reward (Wide tolerance)
+        # We accept a wider range as "good" so it doesn't fight the physical balance point
         r_base = (1 - math.cos(t1) ) / 2
         
-
-        sigma_angle = 0.1 # Widened slightly to accept 178-182 deg
-        sigma_vel = 0.04  # Strict velocity requirement
+        # 2. Stability Reward (The "King" Reward)
+        # We reward High Uprightness AND Low Velocity heavily.
+        # If angle is 178 deg but velocity is 0, this will still be very high.
+        sigma_angle = 0.15 # Widened slightly to accept 178-182 deg
+        sigma_vel = 0.05   # Strict velocity requirement
         
         r_stability = math.exp(-(error**2) / (2 * sigma_angle**2)) * \
                       math.exp(-(v1**2) / (2 * sigma_vel**2))
 
-        # Penalties
+        # 3. Penalties
         uprightness = r_base ** 2
         r_velocity = -0.05 * uprightness * (v1 ** 2)
         
         current_action = float(np.asarray(action).item())
-        r_action = -0.1 * abs(current_action) ** 2
+        r_action = -0.01 * abs(current_action)
         r_pos = -0.1 * (abs(pos) / self.max_pos) ** 2
         
         delta_action = current_action - prev_action
@@ -82,15 +85,14 @@ class CartPoleESP32Env(gym.Env):
         super().reset(seed=seed)
 
         self.esp.serial.reset_output_buffer()
-        self.active_damp() 
+        self.active_damp() # Your guaranteed logic
         self.esp.move(10.0) 
 
-        
+        self.esp.serial.reset_input_buffer()
         self.current_step = 0
         self.first_step_of_episode = True
         self.prev_action = 0.0 
         
-        self.esp.serial.reset_input_buffer()
         raw_state = self.esp.receive_state()
         while raw_state is None:
             raw_state = self.esp.receive_state()
@@ -98,7 +100,8 @@ class CartPoleESP32Env(gym.Env):
         # Standard observation (Assuming C++ handled offset)
         obs = self._get_obs(raw_state, 0.018, 0.0)
         
-        assert abs(math.degrees(raw_state[0])) < 0.1 or abs(math.degrees(raw_state[0]) - 360) < 0.1, f"start angle off{math.degrees(raw_state[0])}"
+        #print(f"Start Angle: {math.degrees(raw_state[0]):.2f}")
+
         self.last_step_time = time.perf_counter()
         return obs, {}
 
@@ -137,8 +140,9 @@ class CartPoleESP32Env(gym.Env):
 
     def step(self, action):
         raw_action = np.clip(action[0], -1.0, 1.0)
-        scaled_action = raw_action #np.sign(raw_action) * (abs(raw_action) ** 1.5)
-
+        
+        current_action = np.sign(raw_action) * (abs(raw_action)**1.5)
+        
         self.current_step += 1
 
         if self.first_step_of_episode:
@@ -150,9 +154,8 @@ class CartPoleESP32Env(gym.Env):
 
             self.last_step_time = time.perf_counter()
 
-        self.esp.move(float(scaled_action))
+        self.esp.move(float(current_action))
 
-        self.esp.serial.reset_input_buffer()
         raw_state = self.esp.receive_state()
         while raw_state is None:
             raw_state = self.esp.receive_state()

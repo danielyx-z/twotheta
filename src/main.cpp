@@ -2,7 +2,7 @@
 #include "Motor.h"
 #include "Encoders.h" 
 
-const unsigned long SERIAL_INTERVAL = 18; 
+const unsigned long SERIAL_INTERVAL = 20; 
 const uint8_t STATE_HEADER[2] = {0xAA, 0x55};
 const uint8_t CMD_HEADER[2] = {0x55, 0xAA};
 const int CMD_PACKET_SIZE = 6;
@@ -26,7 +26,7 @@ void setup() {
 void loop() {
   while (Serial.available()) {
     uint8_t inByte = Serial.read();
-    
+
     if (serialBufferIndex == 0) {
       if (inByte == CMD_HEADER[0]) serialBuffer[serialBufferIndex++] = inByte;
     } else if (serialBufferIndex == 1) {

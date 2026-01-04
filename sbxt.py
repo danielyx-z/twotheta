@@ -11,16 +11,14 @@ BAUD = 921600
 MODEL_NAME = "droq_pendulum_sbx"
 LOG_DIR = "./tensorboard_logs/"
 CKPT_DIR = "./checkpoints"
-TOTAL_TIMESTEPS = 500000
-STEPS_PER_SAVE = 6000
+TOTAL_TIMESTEPS = 300000
+STEPS_PER_SAVE = 10000
 
-# Global gatekeeper to stop double-reset during JAX JIT
-RESET_COUNT = 0
 
 os.makedirs(CKPT_DIR, exist_ok=True)
 
 def make_env():
-    return Monitor(CartPoleESP32Env(port=PORT, baudrate=BAUD, max_steps=3000, enable_viz=False))
+    return Monitor(CartPoleESP32Env(port=PORT, baudrate=BAUD, max_steps=3000))
 
 def latest_checkpoint():
     if not os.path.exists(CKPT_DIR):
@@ -53,7 +51,6 @@ def latest_checkpoint():
     return os.path.join(CKPT_DIR, best_file), best_num
 
 def train():
-    global RESET_COUNT
     env = DummyVecEnv([make_env])
 
     policy_kwargs = dict(
@@ -65,13 +62,13 @@ def train():
     params = {
         "learning_rate": 3e-4,
         "buffer_size": 100000, 
-        "learning_starts": 2000, 
-        "batch_size": 512,
+        "learning_starts": 1000, 
+        "batch_size": 256,
         "tau": 0.005,
         "gamma": 0.99,
         "ent_coef": "auto",
         "train_freq": (1, "step"),
-        "gradient_steps": 25,
+        "gradient_steps": 20,
         "tensorboard_log": LOG_DIR
     }
 
@@ -108,7 +105,7 @@ def train():
         start_steps = 0
 
     try:
-        print(f"Begin training from step {start_steps}. Wait for JAX...")
+        print(f"Begin training from step {start_steps}.")
         model.learn(
             total_timesteps=TOTAL_TIMESTEPS, 
             callback=checkpoint_callback,

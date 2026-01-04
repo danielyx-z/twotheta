@@ -2,8 +2,8 @@
 #include "Encoders.h"
 #include <Arduino.h>
 
-const int MAX_SPEED_HZ = 80000; 
-const int ACCELERATION = 700000; 
+const int MAX_SPEED_HZ = 75000; 
+const int ACCELERATION = 600000; 
 const int ENDPOINT = 32000; // Reduced slightly for safety margin
 const int SAFETY_ZONE = 200; // Steps before endpoint to start slowing down
 const unsigned long HOLD_DURATION_MS = 1000; 
@@ -53,7 +53,7 @@ void resetMotorPosition() {
     while (digitalRead(LIMIT_SWITCH_PIN) == HIGH) {
         delay(1); 
     }
-    stepper->setSpeedInHz(20000); 
+    stepper->setSpeedInHz(18000); 
     stepper->forceStop();
     delay(100); 
     stepper->setCurrentPosition(0);
@@ -67,7 +67,6 @@ void resetMotorPosition() {
     stepper->setAcceleration(ACCELERATION);
     delay(1000);
     recalibrateEncoders();
-    delay(500);
 }
 
 void moveStepper(float action) {

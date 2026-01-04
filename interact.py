@@ -69,7 +69,7 @@ class PendulumVisualizer:
                 continue
 
             theta1, theta2, vel1, vel2, pos, motor_speed = self.last_state
-            
+            print(vel1)
             # Kinematics
             base_x = center_x + pos * POS_SCALE
             x1 = base_x - L1 * math.sin(theta1)
