@@ -57,7 +57,7 @@ def train():
         "buffer_size": 100000, 
         "learning_starts": 3000, 
         "batch_size": 512, 
-        "tau": 0.001,
+        "tau": 0.005,
         "gamma": 0.99,
         "ent_coef": "auto",
         "train_freq": (1, "step"),

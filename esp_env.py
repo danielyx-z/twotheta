@@ -31,14 +31,19 @@ class CartPoleESP32Env(gym.Env):
         t1, t2, v1, v2, pos, motor_vel = state
 
         error_from_top = math.atan2(math.sin(t1 - math.pi), math.cos(t1 - math.pi))
+
+        TYPICAL_ANG_VEL = 5.0      # rad/s
+        TYPICAL_POS = 15000.0      # steps
+        TYPICAL_MOTOR_VEL = 10000.0 # steps/s
+
         return np.array([
-            math.sin(t1),       
-            math.cos(t1),      
-            error_from_top / math.pi,
-            v1 / self.SPIN_THRESHOLD,
-            pos / self.max_pos,
-            motor_vel / self.max_motor_speed,
-            dt_measured * 60,
+            math.sin(t1),
+            math.cos(t1),
+            np.clip(error_from_top / 0.2, -2.0, 2.0),
+            np.clip(v1 / TYPICAL_ANG_VEL, -2.0, 2.0),
+            np.clip(pos / TYPICAL_POS, -1.5, 1.5),
+            np.clip(motor_vel / TYPICAL_MOTOR_VEL, -2.0, 2.0),
+            np.clip((dt_measured - 0.016) * 100, -1.0, 1.0),
             float(prev_action)
         ], dtype=np.float32)
 
@@ -54,7 +59,7 @@ class CartPoleESP32Env(gym.Env):
         r_base = (1 - math.cos(t1) ) / 2
         
 
-        sigma_angle = 0.15 # Widened slightly to accept 178-182 deg
+        sigma_angle = 0.1 # Widened slightly to accept 178-182 deg
         sigma_vel = 0.04  # Strict velocity requirement
         
         r_stability = math.exp(-(error**2) / (2 * sigma_angle**2)) * \
@@ -132,7 +137,7 @@ class CartPoleESP32Env(gym.Env):
 
     def step(self, action):
         raw_action = np.clip(action[0], -1.0, 1.0)
-        scaled_action = np.sign(raw_action) * (abs(raw_action) ** 1.2)
+        scaled_action = raw_action #np.sign(raw_action) * (abs(raw_action) ** 1.5)
 
         self.current_step += 1
 
@@ -147,6 +152,7 @@ class CartPoleESP32Env(gym.Env):
 
         self.esp.move(float(scaled_action))
 
+        self.esp.serial.reset_input_buffer()
         raw_state = self.esp.receive_state()
         while raw_state is None:
             raw_state = self.esp.receive_state()
