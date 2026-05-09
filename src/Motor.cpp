@@ -65,7 +65,7 @@ void resetMotorPosition() {
 
     stepper->setCurrentPosition(0);
     stepper->setAcceleration(ACCELERATION);
-    delay(1000);
+    delay(2000);
     recalibrateEncoders();
 }
 
@@ -128,3 +128,4 @@ void checkMotorSafety() {
         }
     }
 }
+

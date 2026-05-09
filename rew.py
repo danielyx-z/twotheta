@@ -23,7 +23,7 @@ def get_env_reward(t1, v1):
 
 # 2. Create meshgrid for Angle and Velocity
 angle_range = np.linspace(0, 2*np.pi, 200)
-velocity_range = np.linspace(-10, 10, 200)
+velocity_range = np.linspace(-7, 7, 200)
 T1, V1 = np.meshgrid(angle_range, velocity_range)
 
 # 3. Vectorize and Calculate

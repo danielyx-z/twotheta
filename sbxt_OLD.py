@@ -60,10 +60,10 @@ def train():
     )
 
     params = {
-        "learning_rate": 3e-4,
+        "learning_rate": 4e-4,
         "buffer_size": 100000, 
         "learning_starts": 1000, 
-        "batch_size": 256,
+        "batch_size": 512,
         "tau": 0.005,
         "gamma": 0.99,
         "ent_coef": "auto",

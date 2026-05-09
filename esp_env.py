@@ -53,31 +53,35 @@ class CartPoleESP32Env(gym.Env):
 
         # Error relative to PI (180 deg)
         # Using (t1 - pi) logic assuming t1 comes in around 3.14 at top
-        error = math.atan2(math.sin(t1 - math.pi), math.cos(t1 - math.pi))
+        top = math.radians(179.56)
+        error = math.atan2(math.sin(t1 - top), math.cos(t1 - top))
         
         # 1. Base Angle Reward (Wide tolerance)
-        # We accept a wider range as "good" so it doesn't fight the physical balance point
-        r_base = (1 - math.cos(t1) ) / 2
+        # We accept a wider range as "good" so it doesn't fight t
+        # he physical balance point
+        r_base = (1 - math.cos(t1) ) / 2 + math.exp(-abs(error)*2)
+
         
         # 2. Stability Reward (The "King" Reward)
         # We reward High Uprightness AND Low Velocity heavily.
         # If angle is 178 deg but velocity is 0, this will still be very high.
         sigma_angle = 0.15 # Widened slightly to accept 178-182 deg
-        sigma_vel = 0.05   # Strict velocity requirement
+        sigma_vel = 0.1   # Strict velocity requirement
         
         r_stability = math.exp(-(error**2) / (2 * sigma_angle**2)) * \
-                      math.exp(-(v1**2) / (2 * sigma_vel**2))
-
+                       math.exp(-(v1**2) / (2 * sigma_vel**2))
+        
         # 3. Penalties
-        uprightness = r_base ** 2
-        r_velocity = -0.05 * uprightness * (v1 ** 2)
+        uprightness = r_base**1.5
+
+        r_velocity = -0.04* uprightness * abs(v1)**2
         
         current_action = float(np.asarray(action).item())
-        r_action = -0.01 * abs(current_action)
-        r_pos = -0.1 * (abs(pos) / self.max_pos) ** 2
+        r_action = -0.05 * abs(current_action)
+        r_pos = -0.05 * (abs(pos) / self.max_pos) ** 2
         
         delta_action = current_action - prev_action
-        r_delta = -0.5 * (delta_action ** 2)
+        r_delta = -0.1 * (delta_action ** 2)
 
         return float(np.asarray(r_base + r_stability + r_velocity + r_action + r_pos + r_delta).item())
     

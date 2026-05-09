@@ -14,14 +14,14 @@ class CartPoleESP32Env(gym.Env):
         self.action_space = spaces.Box(low=-1.0, high=1.0, shape=(1,), dtype=np.float32)
         
         # [sin(t), cos(t), error_from_top, v, pos, motor_v, dt, prev_act]
-        self.observation_space = spaces.Box(low=-np.inf, high=np.inf, shape=(8,), dtype=np.float32)
+        self.observation_space = spaces.Box(low=-np.inf, high=np.inf, shape=(10,), dtype=np.float32)
         
         self.max_pos = 31900.0  
         self.max_motor_speed = 75000.0
         self.max_episode_steps = max_steps
         self.current_step = 0
         self.overspeed_counter = 0
-        self.MAX_OVERSPEED_FRAMES = 20
+        self.MAX_OVERSPEED_FRAMES = 40
         self.SPIN_THRESHOLD = 3 * math.pi 
         self.last_step_time = time.perf_counter()
         self.first_step_of_episode = True
@@ -31,14 +31,13 @@ class CartPoleESP32Env(gym.Env):
     def _get_obs(self, state, dt_measured, prev_action):
         t1, t2, v1, v2, pos, motor_vel = state
         
-        # We assume C++ has calibrated so Bottom is ~0 and Top is ~PI
-        # Error calculation: Distance from PI
-        error_from_top = math.atan2(math.sin(t1 - math.pi), math.cos(t1 - math.pi))
         return np.array([
             math.sin(t1),       
-            math.cos(t1),      
-            error_from_top / math.pi, # Normalized error
+            math.cos(t1),
+            math.sin(t2),
+            math.cos(t2),   
             v1 / self.SPIN_THRESHOLD,
+            v2 / self.SPIN_THRESHOLD,
             pos / self.max_pos,
             motor_vel / self.max_motor_speed,
             dt_measured * 60,
@@ -46,40 +45,38 @@ class CartPoleESP32Env(gym.Env):
         ], dtype=np.float32)
 
     def _calculate_reward(self, state, action, prev_action, terminated):
-        t1, v1, pos = state[0], state[2], state[4]
+        t1, t2, v1, v2, pos = state[0], state[1], state[2], state[3], state[4]
         
         if terminated:
             return -20.0 
 
-        # Error relative to PI (180 deg)
-        # Using (t1 - pi) logic assuming t1 comes in around 3.14 at top
-        error = math.atan2(math.sin(t1 - math.pi), math.cos(t1 - math.pi))
-        
-        # 1. Base Angle Reward (Wide tolerance)
-        # We accept a wider range as "good" so it doesn't fight the physical balance point
-        r_base = (1 - math.cos(t1) ) / 2
-        
-        # 2. Stability Reward (The "King" Reward)
-        # We reward High Uprightness AND Low Velocity heavily.
-        # If angle is 178 deg but velocity is 0, this will still be very high.
-        sigma_angle = 0.15 # Widened slightly to accept 178-182 deg
-        sigma_vel = 0.05   # Strict velocity requirement
-        
-        r_stability = math.exp(-(error**2) / (2 * sigma_angle**2)) * \
-                      math.exp(-(v1**2) / (2 * sigma_vel**2))
+        # 1. Height Reward for BOTH links
+        # (1-cos)/2 gives 1.0 at the top, 0.0 at the bottom.
+        # We weight t1 higher because it's the foundation.
+        r_height = (0.6 * (1 - math.cos(t1)) / 2) + (0.4 * (1 - math.cos(t2)) / 2)
 
-        # 3. Penalties
-        uprightness = r_base ** 2
-        r_velocity = -0.05 * uprightness * (v1 ** 2)
-        
+        # 2. The "Don't Be Afraid to Move" Logic
+        # While swinging up, velocity is GOOD. 
+        # Only penalize velocity if we are already near the top.
+        is_upright = 1.0 if (math.cos(t1) < -0.5) else 0.0
+        r_vel = -0.05 * is_upright * (v1**2 + v2**2)
+
+        # 3. Action Penalties (Keep these tiny so it explores)
         current_action = float(np.asarray(action).item())
-        r_action = -0.01 * abs(current_action)
-        r_pos = -0.1 * (abs(pos) / self.max_pos) ** 2
+        r_action = -0.001 * (current_action ** 2)
         
         delta_action = current_action - prev_action
-        r_delta = -0.5 * (delta_action ** 2)
+        r_delta = -0.01 * (delta_action ** 2)
 
-        return float(np.asarray(r_base + r_stability + r_velocity + r_action + r_pos + r_delta).item())
+        # 4. Bonus for "Perfect Vertical"
+        # This is the 'pull' that keeps it there once it finds it.
+        error1 = math.atan2(math.sin(t1 - math.pi), math.cos(t1 - math.pi))
+        error2 = math.atan2(math.sin(t2 - math.pi), math.cos(t2 - math.pi))
+        r_stability = 0.0
+        if r_height > 0.8:
+            r_stability = 2.0 * math.exp(-(error1**2 + error2**2) / 0.1)
+
+        return float(r_height + r_vel + r_action + r_delta + r_stability)
     
     def reset(self, seed=None, options=None):
         super().reset(seed=seed)
@@ -124,7 +121,7 @@ class CartPoleESP32Env(gym.Env):
             u_center = 0.01 * (pos / self.max_pos)
             action = -np.clip(u_energy + u_center, -0.8, 0.8)
 
-            if abs(v1) < 0.2 and math.cos(t1) > 0.97 and abs(v2) < 0.2 and math.cos(t2) > 0.97:
+            if abs(v1) < 0.2 and math.cos(t1) > 0.97 and abs(v2 < 0.2) and math.cos(t2)  > 0.97:
                 stabilized += 1
                 if stabilized > 30:  
                     break
@@ -162,7 +159,7 @@ class CartPoleESP32Env(gym.Env):
 
 
         hit_wall = abs(raw_state[4]) > self.max_pos
-        if abs(raw_state[2]) > self.SPIN_THRESHOLD:
+        if abs(raw_state[2]) > self.SPIN_THRESHOLD or abs(raw_state[3]) > self.SPIN_THRESHOLD:
             self.overspeed_counter += 1
         else:
             self.overspeed_counter = 0
